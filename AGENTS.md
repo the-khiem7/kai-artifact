@@ -7,12 +7,14 @@ This repository is an artifact registry. Every artifact is a static web page pub
 - One artifact = one folder `artifacts/<slug>/`. Never put an artifact anywhere else.
 - Entry point is `artifacts/<slug>/index.html`. Required - the build fails without it.
 - `<slug>` is lowercase kebab-case: `^[a-z0-9]+(-[a-z0-9]+)*$`. The build fails on any other folder name.
+- Slug `assets` is reserved - the home page publishes its own files at `/kai-artifact/assets/`. The build fails on it.
 - The slug is the public URL. Never rename or delete a published slug unless the user asks - every link already shared breaks.
 - The published URL drops the `artifacts/` prefix: `artifacts/foo/index.html` is served at `/kai-artifact/foo/`.
 
 ## Page content
 
 - Every `index.html` has a `<title>` and a `<meta name="description" content="...">`. They are the artifact's name and description in the README and the landing page; a missing title falls back to the slug.
+- Every `index.html` declares its language on the root element (`<html lang="vi">`, `<html lang="en">`). The home page shows the primary subtag as a chip (`VI`, `EN`); without `lang` the chip is missing.
 - Keep every asset (CSS, JS, images, data) inside the artifact's own folder and reference it with a relative path (`./style.css`). Never use root-absolute paths (`/style.css`) - the site is served under `/kai-artifact/`, so they resolve to the wrong place.
 - Load external scripts only from a CDN with an exact pinned version.
 - Pages are public on the internet, even if the repository is private. Never commit secrets, credentials, tokens, internal hostnames, customer data, or other confidential content into an artifact.
@@ -23,9 +25,16 @@ This repository is an artifact registry. Every artifact is a static web page pub
 - Never remove or rename the two markers - the build fails without them.
 - The rest of `README.md` is free to edit.
 
+## Home page
+
+- The home page (`/kai-artifact/`) is rendered from `site/template.html` by `scripts/build_site.py` with Python `string.Template`. Placeholders: `$base_url`, `$count`, `$items`. A literal dollar sign in the template is written `$$`, otherwise the build fails.
+- Keep the signature recorded at the top of `site/template.html`: `k/` monogram, IBM Plex Sans + IBM Plex Mono, one teal accent, hairline dividers, sticky intro column beside the list. It was chosen over themed designs (museum register, blueprint, departure board) because the page must stay plain and effective; do not reintroduce a themed metaphor.
+- Topic chips in the intro column (`DevSecOps`, `AWS`, `research`) are static text in the template. Update them by hand when the artifact mix changes.
+- `site/assets/` is copied to `/kai-artifact/assets/` (favicon, social preview). `site/assets/og.png` is rendered at 1200x630 from `site/source/og.html`; re-render it after editing that source.
+
 ## Build and deploy
 
-- `.github/workflows/pages.yml` runs on push to `main` (changes under `artifacts/`, `scripts/`, or the workflow) and on manual dispatch. It regenerates the README section, commits it as `github-actions[bot]` when it changed, builds `_site/`, and deploys to GitHub Pages.
+- `.github/workflows/pages.yml` runs on push to `main` (changes under `artifacts/`, `scripts/`, `site/`, or the workflow) and on manual dispatch. It regenerates the README section, commits it as `github-actions[bot]` when it changed, builds `_site/`, and deploys to GitHub Pages.
 - `scripts/build_site.py` is the only build logic. Python standard library only - add no dependencies.
 - Check a change locally before pushing:
   - `uv run scripts/build_site.py site --base-url https://the-khiem7.github.io/kai-artifact/ --out _site` - builds the site into `_site/` (gitignored).

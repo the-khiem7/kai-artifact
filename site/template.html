@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!--
+Signature
+Concept: Kai's shelf of published research - plain, fast to scan, every link one click from copied.
+Shape language: hairline dividers, small square corners (4px), a "k/" monogram, slugs shown as paths.
+Typeface: IBM Plex Sans (text) with IBM Plex Mono (paths, labels).
+Palette logic: neutral paper/ink, one deep teal accent that does all the work; same teal brightened in dark.
+Presentation: a sticky intro column (who, what, search) beside the list, so the page reads as Kai's shelf.
+Not: a themed metaphor, a gradient hero, a dashboard.
+
+Rendered by scripts/build_site.py with string.Template: placeholders are base_url, count and items, each prefixed with a dollar sign. Write a literal dollar sign as two dollar signs.
+-->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kai's artifacts</title>
+<meta name="description" content="Research notes and reports by Kai, each published as its own page with a link you can share.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Kai's artifacts">
+<meta property="og:description" content="Research notes and reports by Kai, each published as its own page with a link you can share.">
+<meta property="og:url" content="$base_url">
+<meta property="og:image" content="${base_url}assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#fbfbfa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap"></noscript>
+<style>
+:root { --bg:#fbfbfa; --fg:#18181b; --muted:#5b5b63; --line:#e4e4e2; --soft:#f1f1ef; --accent:#0f766e; --accent-soft:#e0f2ef; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#111214; --fg:#ededee; --muted:#a1a1aa; --line:#27272a; --soft:#1a1b1e; --accent:#2dd4bf; --accent-soft:#12302d; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#111214; --fg:#ededee; --muted:#a1a1aa; --line:#27272a; --soft:#1a1b1e; --accent:#2dd4bf; --accent-soft:#12302d; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 "IBM Plex Sans", system-ui, sans-serif; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+button { font: inherit; color: inherit; cursor: pointer; }
+nav { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; }
+.mark { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--fg); text-decoration: none; }
+.mark b { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 4px; background: var(--accent); color: var(--bg); font: 500 .95rem "IBM Plex Mono", monospace; }
+.icon { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 4px; background: none; display: grid; place-items: center; }
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: 56px; align-items: start; }
+header { position: sticky; top: 0; padding: 40px 0 28px; }
+main { padding-top: 40px; }
+h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); line-height: 1.15; margin: 0 0 10px; font-weight: 600; letter-spacing: -.015em; }
+.lead { color: var(--muted); margin: 0; max-width: 60ch; }
+.search { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 4px; padding: 0 12px; background: var(--soft); margin-top: 28px; }
+.search input { flex: 1; border: 0; background: none; color: var(--fg); font: inherit; padding: 12px 0; outline: none; min-width: 0; }
+.search:focus-within { border-color: var(--accent); }
+.count { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+.who { margin-top: 24px; display: flex; flex-wrap: wrap; gap: 6px; }
+ul { list-style: none; margin: 0 0 56px; padding: 0; border-top: 1px solid var(--line); }
+li { padding: 20px 0; border-bottom: 1px solid var(--line); }
+li h2 { font-size: 1.15rem; margin: 0 0 4px; font-weight: 600; }
+li h2 a { color: var(--fg); text-decoration: none; }
+li h2 a:hover, li h2 a:focus-visible { color: var(--accent); }
+li p { margin: 0 0 12px; color: var(--muted); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.path { font-size: .82rem; color: var(--accent); word-break: break-all; }
+.chip { font-size: .72rem; padding: 2px 8px; border-radius: 4px; background: var(--soft); color: var(--muted); border: 1px solid var(--line); }
+.copy { margin-left: auto; min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 4px; background: none; font-size: .82rem; }
+.copy:hover, .copy:focus-visible { border-color: var(--accent); color: var(--accent); }
+.copy.done { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.empty { color: var(--muted); padding: 20px 0; margin: 0; }
+footer { padding: 0 0 40px; color: var(--muted); font-size: .85rem; }
+footer a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; gap: 0; } header { position: static; } main { padding-top: 0; } }
+@media (max-width: 520px) { .copy { margin-left: 0; min-height: 44px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav><a class="mark" href="./"><b>k/</b>kai-artifact</a><button class="icon" id="theme" type="button" aria-label="Toggle dark theme" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></nav>
+  <div class="layout">
+    <header>
+      <h1>Kai's artifacts</h1>
+      <p class="lead">Research notes and reports by Kai, each published as its own page with a link you can share.</p>
+      <label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" type="search" placeholder="Search artifacts" aria-label="Search artifacts"><span class="count mono" aria-live="polite">$count</span></label>
+      <div class="who"><span class="chip mono">DevSecOps</span><span class="chip mono">AWS</span><span class="chip mono">research</span></div>
+    </header>
+    <main>
+$items
+    </main>
+  </div>
+  <footer>Source on <a href="https://github.com/the-khiem7/kai-artifact">GitHub</a>. All pages are public.</footer>
+</div>
+<script>
+(function(){
+  var root=document.documentElement, btn=document.getElementById("theme");
+  function dark(){return root.dataset.theme? root.dataset.theme==="dark" : matchMedia("(prefers-color-scheme: dark)").matches}
+  btn.setAttribute("aria-pressed",dark());
+  btn.onclick=function(){root.dataset.theme=dark()?"light":"dark";try{localStorage.setItem("theme",root.dataset.theme)}catch(e){}btn.setAttribute("aria-pressed",dark())};
+  var items=[].slice.call(document.querySelectorAll("#list li")), count=document.querySelector(".count"), q=document.getElementById("q");
+  function filter(){var s=q.value.toLowerCase(),n=0;items.forEach(function(li){var m=li.textContent.toLowerCase().indexOf(s)>-1;li.hidden=!m;if(m)n++});count.textContent=n}
+  q.addEventListener("input",filter);
+  document.querySelectorAll(".copy").forEach(function(b){b.onclick=function(){var u=b.dataset.url;(navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).catch(function(){prompt("Copy this link",u)}).then(function(){b.textContent="Copied";b.classList.add("done");setTimeout(function(){b.textContent="Copy link";b.classList.remove("done")},1500)})}});
+})();
+</script>
+</body>
+</html>
