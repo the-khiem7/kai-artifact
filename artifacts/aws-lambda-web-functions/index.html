@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AWS Lambda Web Functions</title>
+<meta name="description" content="Nghiên cứu có kiểm chứng về AWS Lambda Web Functions (ra mắt 12/10/2026): mô hình lập trình, concurrency, billing, networking, giới hạn và khi nào nên dùng.">
+<style>
+:root {
+  --bg: #fafaf9; --fg: #1c1917; --muted: #57534e; --card: #ffffff; --border: #e7e5e4; --accent: #2563eb; --accent-soft: #dbeafe;
+  --ok: #15803d; --ok-soft: #dcfce7; --warn: #b45309; --warn-soft: #fef3c7; --bad: #b91c1c; --bad-soft: #fee2e2; --code-bg: #f5f5f4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0a09; --fg: #f5f5f4; --muted: #a8a29e; --card: #1c1917; --border: #292524; --accent: #60a5fa; --accent-soft: #172554;
+    --ok: #4ade80; --ok-soft: #052e16; --warn: #fbbf24; --warn-soft: #422006; --bad: #f87171; --bad-soft: #450a0a; --code-bg: #292524;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0a09; --fg: #f5f5f4; --muted: #a8a29e; --card: #1c1917; --border: #292524; --accent: #60a5fa; --accent-soft: #172554;
+  --ok: #4ade80; --ok-soft: #052e16; --warn: #fbbf24; --warn-soft: #422006; --bad: #f87171; --bad-soft: #450a0a; --code-bg: #292524;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+header.hero { padding: 48px 0 24px; border-bottom: 1px solid var(--border); }
+.eyebrow { color: var(--accent); font-weight: 600; font-size: .85rem; letter-spacing: .04em; text-transform: uppercase; }
+h1 { margin: 6px 0 12px; font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.15; }
+.lead { color: var(--muted); font-size: 1.1rem; max-width: 760px; margin: 0 0 20px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.meta li { font-size: .82rem; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--muted); }
+nav.toc { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--border); }
+nav.toc .wrap { display: flex; gap: 4px; overflow-x: auto; padding-top: 8px; padding-bottom: 8px; }
+nav.toc a { white-space: nowrap; padding: 4px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: .88rem; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--accent-soft); color: var(--accent); }
+section { padding: 36px 0 8px; scroll-margin-top: 48px; }
+h2 { margin: 0 0 6px; font-size: 1.5rem; }
+h3 { margin: 24px 0 8px; font-size: 1.05rem; }
+p { margin: 0 0 12px; }
+.sub { color: var(--muted); margin: 0 0 18px; }
+code { background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font: .88em ui-monospace, SFMono-Regular, Consolas, monospace; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.card .k { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.card .v { font-size: 1.35rem; font-weight: 650; margin: 2px 0; }
+.card .d { color: var(--muted); font-size: .88rem; }
+table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: .93rem; }
+.tablewrap { overflow-x: auto; border-radius: 10px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--code-bg); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+.tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.tag.ok { background: var(--ok-soft); color: var(--ok); }
+.tag.warn { background: var(--warn-soft); color: var(--warn); }
+.tag.bad { background: var(--bad-soft); color: var(--bad); }
+.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+.callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+.callout.bad { border-color: var(--bad); background: var(--bad-soft); }
+.callout p:last-child { margin-bottom: 0; }
+ul.tight { margin: 0 0 12px; padding-left: 20px; }
+ul.tight li { margin-bottom: 4px; }
+figure { margin: 16px 0; }
+figure svg { width: 100%; height: auto; display: block; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+figcaption { color: var(--muted); font-size: .85rem; margin-top: 6px; }
+svg text { font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--fg); }
+svg .mut { fill: var(--muted); font-size: 12px; }
+svg .box { fill: var(--card); stroke: var(--border); stroke-width: 1.5; }
+svg .acc { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+svg .okb { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 1.5; }
+svg .badb { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 1.5; }
+svg .ln { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+svg .dash { stroke-dasharray: 5 4; }
+svg .cpuc { fill: var(--accent); }
+svg .memb { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+svg .arrowhead { fill: var(--muted); }
+svg .sm { font-size: 12px; }
+svg .ttl { font-weight: 600; }
+.viz { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 16px 0; }
+.viz h4 { margin: 0 0 4px; font-size: 1rem; }
+.viz .note { color: var(--muted); font-size: .85rem; margin: 0 0 12px; }
+.controls { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-bottom: 14px; }
+.controls label { display: block; font-size: .88rem; color: var(--muted); }
+.controls label output { color: var(--fg); font-weight: 650; }
+.controls input[type="range"] { width: 100%; accent-color: var(--accent); margin: 4px 0 0; }
+.stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 14px; }
+.stat { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; background: var(--bg); }
+.stat .k { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+.stat .v { font-size: 1.25rem; font-weight: 650; }
+.stat.hl { border-color: var(--accent); background: var(--accent-soft); }
+.panel-title { font-size: .85rem; font-weight: 600; margin: 10px 0 6px; }
+.dots { display: flex; flex-wrap: wrap; gap: 3px; }
+.dot { width: 9px; height: 9px; border-radius: 2px; background: var(--muted); opacity: .75; }
+.envs { display: flex; flex-wrap: wrap; gap: 4px; }
+.env { position: relative; width: 34px; height: 34px; border: 1.5px solid var(--accent); border-radius: 5px; background: var(--accent-soft); overflow: hidden; }
+.env i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); opacity: .55; }
+.bars { display: grid; gap: 8px; }
+.bar { display: grid; grid-template-columns: 190px 1fr; gap: 10px; align-items: center; font-size: .85rem; }
+.bar .track { background: var(--code-bg); border-radius: 6px; height: 22px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); border-radius: 6px; min-width: 2px; display: flex; align-items: center; justify-content: flex-end; padding: 0 8px; color: #fff; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.bar .fill.ok { background: var(--ok); }
+.bar .fill.warn { background: var(--warn); }
+.bar .fill.mut { background: var(--muted); }
+.bar .fill.bad { background: var(--bad); }
+.stack { display: flex; height: 24px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+.stack span { display: flex; align-items: center; justify-content: center; color: #fff; font-size: .75rem; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .8rem; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+@media (max-width: 560px) { .bar { grid-template-columns: 1fr; gap: 4px; } }
+details { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; margin-bottom: 10px; }
+summary { cursor: pointer; font-weight: 600; }
+details .ev { color: var(--muted); font-size: .9rem; margin-top: 8px; }
+.src { font-size: .88rem; word-break: break-all; }
+.src a { color: var(--accent); }
+footer { margin-top: 48px; padding: 24px 0 48px; border-top: 1px solid var(--border); color: var(--muted); font-size: .88rem; }
+a { color: var(--accent); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+<div class="wrap">
+<div class="eyebrow">Nghiên cứu có kiểm chứng - 14/10/2026</div>
+<h1>AWS Lambda Web Functions</h1>
+<p class="lead">Loại Lambda function thứ hai, ra mắt ngày 12/10/2026: code chạy như một HTTP server thông thường lắng nghe trên một port, không cần adapter hay handler. Một execution environment phục vụ nhiều request đồng thời, billing theo CPU thực sự dùng.</p>
+<ul class="meta">
+<li>24/25 claim được xác nhận (3 phiếu kiểm chứng mỗi claim)</li>
+<li>19 nguồn, 90 claim trích xuất</li>
+<li>Nguồn chủ yếu: tài liệu first-party của AWS</li>
+<li>Chưa có benchmark độc lập</li>
+</ul>
+</div>
+</header>
+
+<nav class="toc" aria-label="Mục lục">
+<div class="wrap">
+<a href="#tong-quan">Tổng quan</a>
+<a href="#mo-hinh">Mô hình lập trình</a>
+<a href="#concurrency">Concurrency</a>
+<a href="#billing">Billing</a>
+<a href="#networking">Networking</a>
+<a href="#multi-region">Multi-Region</a>
+<a href="#adapter">Web Adapter</a>
+<a href="#han-che">Giới hạn</a>
+<a href="#luu-y">Lưu ý</a>
+<a href="#nguon">Nguồn</a>
+</div>
+</nav>
+
+<main class="wrap">
+
+<section id="tong-quan">
+<h2>Tổng quan</h2>
+<p class="sub">Lambda giờ có ba dạng: Event Functions (mô hình cũ, được đổi tên), Web Functions (mới) và MicroVMs.</p>
+<div class="grid">
+<div class="card"><div class="k">Ra mắt</div><div class="v">12/10/2026</div><div class="d">Bài What's New và News Blog của AWS</div></div>
+<div class="card"><div class="k">Runtime</div><div class="v">nodejs24.x</div><div class="d">Chỉ Node.js ở thời điểm ra mắt</div></div>
+<div class="card"><div class="k">Concurrency / environment</div><div class="v">64 - 128</div><div class="d">Mặc định 64, tối đa 128 request đồng thời</div></div>
+<div class="card"><div class="k">Region ra mắt</div><div class="v">5</div><div class="d">us-east-1, us-east-2, us-west-2, ap-northeast-1, eu-west-1</div></div>
+</div>
+
+<h3>Đường đi của một request</h3>
+<figure>
+<svg viewBox="0 0 760 170" role="img" aria-label="Đường đi của request từ client qua CloudFront tùy chọn, HTTPS endpoint do Lambda quản lý, tới execution environment và egress connector tùy chọn">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrowhead" d="M0 0 L10 5 L0 10 z"/></marker></defs>
+<rect class="box" x="10" y="30" width="110" height="80" rx="8"/>
+<text class="ttl" x="24" y="56">Client</text><text class="mut" x="24" y="76">trình duyệt,</text><text class="mut" x="24" y="92">API client</text>
+<rect class="box dash" x="150" y="30" width="130" height="80" rx="8"/>
+<text class="ttl" x="164" y="56">CloudFront</text><text class="mut" x="164" y="76">(tùy chọn)</text><text class="mut" x="164" y="92">domain, WAF, cache</text>
+<rect class="acc" x="310" y="30" width="150" height="80" rx="8"/>
+<text class="ttl" x="324" y="56">HTTPS endpoint</text><text class="mut" x="324" y="76">Lambda quản lý</text><text class="mut" x="324" y="92">HTTP/1.1, authorization</text>
+<rect class="okb" x="490" y="30" width="130" height="80" rx="8"/>
+<text class="ttl" x="504" y="56">Execution env</text><text class="mut" x="504" y="76">HTTP server Node.js</text><text class="mut" x="504" y="92">64 - 128 request</text>
+<rect class="box dash" x="650" y="30" width="100" height="80" rx="8"/>
+<text class="ttl" x="662" y="56">Connector</text><text class="mut" x="662" y="76">(tùy chọn)</text><text class="mut" x="662" y="92">ra VPC của bạn</text>
+<path class="ln" d="M120 70 H148" marker-end="url(#arr)"/>
+<path class="ln" d="M280 70 H308" marker-end="url(#arr)"/>
+<path class="ln" d="M460 70 H488" marker-end="url(#arr)"/>
+<path class="ln" d="M620 70 H648" marker-end="url(#arr)"/>
+<text class="mut sm" x="20" y="140">Nét đứt: thành phần tùy chọn. Không có API Gateway, Function URL hay adapter trong đường đi.</text>
+<text class="mut sm" x="20" y="158">Chiều vào là public. Connector chỉ thêm đường ra, không làm endpoint thành private.</text>
+</svg>
+<figcaption>Hình minh họa khái niệm tổng hợp từ What's New, Compute Blog và trang networking.</figcaption>
+</figure>
+
+<h3>Event Functions và Web Functions</h3>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Tiêu chí</th><th>Event Functions (cũ)</th><th>Web Functions (mới)</th></tr></thead>
+<tbody>
+<tr><td>Cách chạy code</td><td>Export handler, nhận event và context</td><td>HTTP server lắng nghe port, không có handler hay JSON event</td></tr>
+<tr><td>Request mỗi environment</td><td>Một request tại một thời điểm, bị freeze giữa các lần invoke</td><td>Nhiều request đồng thời (mặc định 64, tối đa 128)</td></tr>
+<tr><td>Đầu vào HTTP</td><td>Cần API Gateway, Function URL hoặc adapter</td><td>Lambda tạo sẵn HTTPS endpoint</td></tr>
+<tr><td>Billing CPU</td><td>Theo thời gian chạy (wall-clock)</td><td>Theo active CPU time, thời gian chờ I/O không tính CPU</td></tr>
+<tr><td>Ngôn ngữ</td><td>Nhiều runtime</td><td>Node.js (nodejs24.x) ở thời điểm ra mắt</td></tr>
+</tbody>
+</table>
+</div>
+<div class="callout">
+<p>Cả ba nguồn first-party (What's New, News Blog, Compute Blog) khớp nhau về định nghĩa. Một bài Classmethod ngày 4/10 gọi các API là "experimental" đã được chính bài đó cập nhật ngày 13/10 thành GA.</p>
+</div>
+</section>
+
+<section id="mo-hinh">
+<h2>Mô hình lập trình và deploy</h2>
+<p class="sub">Độ tin cậy: cao (3-0).</p>
+<ul class="tight">
+<li>Deploy bằng file <code>.zip</code>. Lambda tạo HTTPS endpoint, quản lý execution environment và scale theo traffic, kể cả về 0.</li>
+<li>Dùng framework Node.js quen thuộc (Express, Hono, React Router) mà không cần adapter hay wrapper riêng của Lambda.</li>
+<li>Server phải bind vào host và port trong biến môi trường <code>AWS_LAMBDA_HTTP_ENDPOINT</code> (dạng host:port).</li>
+<li>Runtime nạp <code>index.js</code> ở gốc package, hoặc file chỉ định bởi <code>AWS_LAMBDA_NODEJS_ENTRYPOINT</code>.</li>
+<li>Lambda không kiểm tra server có thực sự đã lắng nghe hay chưa.</li>
+<li>Next.js ở chế độ standalone cần một <code>index.js</code> nhỏ để đặt host và port.</li>
+</ul>
+<div class="callout warn">
+<p>Bài Classmethod (bản phân tích trước ra mắt) ghi port 3000 và trả 502 với port khác. Tài liệu chính thức nay dùng port lấy từ <code>AWS_LAMBDA_HTTP_ENDPOINT</code>, nên hãy đọc biến môi trường thay vì hardcode port.</p>
+</div>
+</section>
+
+<section id="concurrency">
+<h2>Concurrency và cold start</h2>
+<p class="sub">Độ tin cậy: cao (3-0), kèm lưu ý về con số.</p>
+<figure>
+<svg viewBox="0 0 760 250" role="img" aria-label="So sánh Event Functions với Web Functions về số request mỗi execution environment">
+<text x="20" y="24" style="font-weight:600">Event Functions: 1 request / environment</text>
+<g>
+<rect class="box" x="20" y="36" width="150" height="52" rx="8"/><text x="36" y="58">Request A</text><text class="mut" x="36" y="76">Environment 1</text>
+<rect class="box" x="190" y="36" width="150" height="52" rx="8"/><text x="206" y="58">Request B</text><text class="mut" x="206" y="76">Environment 2</text>
+<rect class="box" x="360" y="36" width="150" height="52" rx="8"/><text x="376" y="58">Request C</text><text class="mut" x="376" y="76">Environment 3</text>
+<text class="mut" x="530" y="56">3 request = 3 environment,</text><text class="mut" x="530" y="74">có thể 3 cold start</text>
+</g>
+<text x="20" y="130" style="font-weight:600">Web Functions: nhiều request / environment</text>
+<g>
+<rect class="acc" x="20" y="142" width="490" height="88" rx="8"/>
+<text x="36" y="164">Một environment (HTTP server)</text>
+<rect class="okb" x="36" y="176" width="130" height="38" rx="6"/><text x="52" y="200">Request A</text>
+<rect class="okb" x="180" y="176" width="130" height="38" rx="6"/><text x="196" y="200">Request B</text>
+<rect class="okb" x="324" y="176" width="130" height="38" rx="6"/><text x="340" y="200">Request C</text>
+<text class="mut" x="530" y="186">Dùng chung CPU và memory.</text>
+<text class="mut" x="530" y="206">Quá giới hạn: HTTP 429,</text><text class="mut" x="530" y="224">không xếp hàng.</text>
+</g>
+</svg>
+<figcaption>Hình minh họa khái niệm dựa trên mô tả của Compute Blog và pricing page.</figcaption>
+</figure>
+<ul class="tight">
+<li>Tham số <code>maxConcurrencyPerEnvironment</code>: mặc định 64, tối đa 128.</li>
+<li>AWS nói cách này giảm cold start "orders of magnitude". Đây là ngôn ngữ tiếp thị, chưa có benchmark độc lập.</li>
+<li>Request vượt giới hạn nhận HTTP 429 và không được xếp hàng. 429 cũng có thể đến từ các cấu hình <code>maxEnvironments</code> và <code>rateLimit</code> ở cấp endpoint.</li>
+</ul>
+<div class="callout warn">
+<p>64 và 128 là mặc định và trần của một giới hạn được quản lý động, nên concurrency duy trì thực tế có thể thấp hơn. Compute và memory dùng chung giữa các request đồng thời, nên một request nặng CPU có thể làm chậm các request khác.</p>
+</div>
+
+<div class="viz" id="sim">
+<h4>Mô phỏng: cần bao nhiêu execution environment?</h4>
+<p class="note">Mô hình lý tưởng hóa: Event Functions cần một environment cho mỗi request đồng thời, Web Functions cần ceil(request / giới hạn mỗi environment). Giới hạn thực tế do Lambda điều chỉnh động và có thể thấp hơn giá trị bạn chọn, nên đây là cận dưới. Không mô phỏng maxEnvironments, rateLimit hay 429.</p>
+<div class="controls">
+<label for="in-n">Request đồng thời: <output id="o-n" for="in-n"></output>
+<input type="range" id="in-n" min="1" max="512" step="1" value="200"></label>
+<label for="in-lim">Giới hạn mỗi environment (mặc định 64, tối đa 128): <output id="o-lim" for="in-lim"></output>
+<input type="range" id="in-lim" min="1" max="128" step="1" value="64"></label>
+</div>
+<div class="stats" aria-live="polite">
+<div class="stat"><div class="k">Event Functions</div><div class="v" id="s-ev"></div></div>
+<div class="stat hl"><div class="k">Web Functions</div><div class="v" id="s-web"></div></div>
+<div class="stat"><div class="k">Số environment ít hơn</div><div class="v" id="s-ratio"></div></div>
+</div>
+<div class="panel-title">Event Functions: mỗi ô là một environment phục vụ đúng một request</div>
+<div class="dots" id="v-ev" aria-hidden="true"></div>
+<div class="panel-title">Web Functions: mỗi ô là một environment, phần tô là mức lấp đầy so với giới hạn</div>
+<div class="envs" id="v-web" aria-hidden="true"></div>
+<p class="note" style="margin-top:10px">Số environment cần tạo cũng là số lần khởi tạo (init) tối đa nếu bắt đầu từ trạng thái nguội hoàn toàn. Đây là suy luận từ mô hình concurrency, chưa phải số đo cold start thực tế.</p>
+</div>
+</section>
+
+<section id="billing">
+<h2>Billing</h2>
+<p class="sub">Độ tin cậy: cao (3-0). Giá lấy từ ví dụ trên pricing page, chưa gồm free tier và data transfer.</p>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Thành phần</th><th>Đơn giá (US East N. Virginia, Arm)</th><th>Ghi chú</th></tr></thead>
+<tbody>
+<tr><td>Active CPU time</td><td><code>$0.0000276944</code> / vCPU-giây</td><td>Chỉ tính CPU thực sự dùng, độ chi tiết 1 ms</td></tr>
+<tr><td>Memory</td><td><code>$0.0000036667</code> / GB-giây</td><td>Tính suốt vòng đời environment, kể cả lúc idle giữa các request</td></tr>
+<tr><td>Request</td><td><code>$0.30</code> / triệu</td><td>Chỉ thấy trong ví dụ minh họa</td></tr>
+<tr><td>Data transfer</td><td>Theo bảng giá data transfer</td><td>Được liệt kê là một mục billing riêng</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="viz" id="cost">
+<h4>Minh họa: phần CPU và phần request của hóa đơn</h4>
+<p class="note">Mặc định tái hiện ví dụ của pricing page: request mở 3.000 ms, active CPU 200 ms. Giả định mỗi request dùng 1 vCPU trong lúc hoạt động. Không gồm memory (tính theo vòng đời environment, phụ thuộc cấu hình và độ lấp đầy), free tier và data transfer. Dùng đơn giá US East (N. Virginia), Arm.</p>
+<div class="controls">
+<label for="in-dur">Thời gian request mở (wall-clock): <output id="o-dur" for="in-dur"></output>
+<input type="range" id="in-dur" min="50" max="5000" step="50" value="3000"></label>
+<label for="in-cpu">Active CPU: <output id="o-cpu" for="in-cpu"></output>
+<input type="range" id="in-cpu" min="1" max="3000" step="1" value="200"></label>
+<label for="in-req">Số request mỗi tháng: <output id="o-req" for="in-req"></output>
+<input type="range" id="in-req" min="1" max="100" step="1" value="10"></label>
+</div>
+<div class="bars">
+<div class="bar"><span>Tính theo active CPU</span><div class="track"><div class="fill" id="b-act"></div></div></div>
+<div class="bar"><span>Nếu tính cả thời gian chờ</span><div class="track"><div class="fill mut" id="b-all"></div></div></div>
+</div>
+<div class="stats" style="margin-top:14px" aria-live="polite">
+<div class="stat hl"><div class="k">CPU mỗi triệu request</div><div class="v" id="c-cpu"></div></div>
+<div class="stat"><div class="k">Phí request mỗi triệu</div><div class="v" id="c-reqfee"></div></div>
+<div class="stat"><div class="k">Cộng (chưa gồm memory)</div><div class="v" id="c-tot"></div></div>
+<div class="stat"><div class="k">Cả tháng (chưa gồm memory)</div><div class="v" id="c-month"></div></div>
+</div>
+<p class="note" style="margin-bottom:0">Thanh thứ hai chỉ cho thấy tỷ lệ nếu cùng đơn giá CPU áp lên toàn bộ thời gian chờ. Nó không phải giá của Event Functions và không phải một so sánh chi phí thật.</p>
+</div>
+
+<figure>
+<svg viewBox="0 0 760 240" role="img" aria-label="Vòng đời một execution environment: nhiều request chồng nhau, active CPU rời rạc, memory được giữ liên tục">
+<text class="ttl" x="20" y="22">Vòng đời một execution environment</text>
+<rect class="box dash" x="120" y="34" width="620" height="162" rx="8"/>
+<text class="sm" x="20" y="72">Request</text>
+<rect class="box" x="140" y="44" width="260" height="12" rx="3"/>
+<rect class="box" x="220" y="62" width="110" height="12" rx="3"/>
+<rect class="box" x="300" y="80" width="260" height="12" rx="3"/>
+<rect class="box" x="520" y="98" width="180" height="12" rx="3"/>
+<text class="sm" x="20" y="143">Active CPU</text>
+<rect class="cpuc" x="140" y="130" width="20" height="18"/>
+<rect class="cpuc" x="220" y="130" width="12" height="18"/>
+<rect class="cpuc" x="300" y="130" width="18" height="18"/>
+<rect class="cpuc" x="330" y="130" width="12" height="18"/>
+<rect class="cpuc" x="520" y="130" width="20" height="18"/>
+<rect class="cpuc" x="560" y="130" width="12" height="18"/>
+<rect class="cpuc" x="640" y="130" width="12" height="18"/>
+<text class="sm" x="20" y="183">Memory</text>
+<rect class="memb" x="130" y="168" width="600" height="18" rx="4"/>
+<text class="mut sm" x="140" y="181">Giữ suốt vòng đời, tính theo GB-giây kể cả lúc idle</text>
+<path class="ln" d="M120 216 H730" marker-end="url(#arr)"/>
+<text class="mut sm" x="696" y="232">thời gian</text>
+</svg>
+<figcaption>Hình minh họa khái niệm, không theo số đo. Các request chồng nhau trên cùng một environment, CPU chỉ tính lúc hoạt động, còn memory tính liên tục.</figcaption>
+</figure>
+
+<div class="callout warn">
+<p>Chưa tìm thấy giá cho x86 hoặc các Region khác. Chưa có benchmark chi phí độc lập, nên câu "có thể giảm chi phí compute" của AWS vẫn là giả thuyết cần đo trên workload thật (SSR, streaming AI inference là các ứng dụng AWS nhắc tới).</p>
+</div>
+</section>
+
+<section id="networking">
+<h2>Endpoint và networking</h2>
+<p class="sub">Độ tin cậy: cao, nhưng chủ yếu dựa trên một trang tài liệu chính (web-functions-networking).</p>
+
+<h3>Ingress (chiều vào)</h3>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead>
+<tbody>
+<tr><td>HTTPS endpoint do Lambda quản lý, public</td><td><span class="tag ok">Có</span> HTTP/1.1</td></tr>
+<tr><td>Kiểm soát truy cập</td><td><span class="tag ok">Có</span> cấu hình authorization của endpoint</td></tr>
+<tr><td>Custom domain</td><td><span class="tag bad">Không</span> dùng CloudFront phía trước</td></tr>
+<tr><td>AWS WAF gắn trực tiếp</td><td><span class="tag bad">Không</span> gắn WAF qua CloudFront</td></tr>
+<tr><td>PrivateLink interface endpoint</td><td><span class="tag bad">Không</span></td></tr>
+<tr><td>WebSocket</td><td><span class="tag bad">Không</span> dùng server-sent events thay thế</td></tr>
+<tr><td>HTTP streaming</td><td><span class="tag ok">Có</span> native</td></tr>
+</tbody>
+</table>
+</div>
+<p style="margin-top:12px">CloudFront là cổng trước được tài liệu hướng dẫn cho custom domain, cache, nén, WAF và HTTP/2, HTTP/3. Các tính năng này chỉ áp dụng giữa viewer và edge, chặng origin vẫn là HTTP/1.1.</p>
+
+<h3>Egress (chiều ra) và VPC</h3>
+<figure>
+<svg viewBox="0 0 760 260" role="img" aria-label="Web Function chạy ngoài VPC, truy cập VPC qua egress network connector">
+<rect class="box dash" x="20" y="20" width="250" height="220" rx="10"/>
+<text x="34" y="44" style="font-weight:600">Hạ tầng do Lambda sở hữu</text>
+<rect class="acc" x="40" y="64" width="210" height="60" rx="8"/><text x="56" y="90">Web Function revision</text><text class="mut" x="56" y="108">tham chiếu 0 hoặc 1 connector</text>
+<rect class="box" x="40" y="160" width="210" height="60" rx="8"/><text x="56" y="186">Egress network connector</text><text class="mut" x="56" y="204">ARN có version, cùng account + Region</text>
+<path class="ln" d="M145 124 V160"/>
+<rect class="okb" x="400" y="20" width="340" height="150" rx="10"/>
+<text x="414" y="44" style="font-weight:600">VPC của bạn</text>
+<rect class="box" x="420" y="62" width="130" height="40" rx="6"/><text x="434" y="86">ENI subnet A</text>
+<rect class="box" x="570" y="62" width="150" height="40" rx="6"/><text x="584" y="86">ENI subnet B (AZ khác)</text>
+<text class="mut" x="414" y="130">Route table, security group, NACL của bạn áp dụng.</text>
+<text class="mut" x="414" y="150">Ra internet cần NAT gateway (IPv4) hoặc egress-only IGW (IPv6).</text>
+<path class="ln" d="M250 190 H340 V82 H420"/>
+<text class="mut" x="400" y="215">Không có connector: đi thẳng ra IPv4 public, IP nguồn do Lambda quản lý</text>
+<text class="mut" x="400" y="233">và không ổn định, không dùng được cho allow list.</text>
+</svg>
+<figcaption>Hình minh họa khái niệm dựa trên trang networking của Developer Guide.</figcaption>
+</figure>
+<ul class="tight">
+<li>Web Function không chạy trong VPC của bạn. Connector chỉ thêm đường ra, không làm endpoint thành private và không giới hạn request đi vào.</li>
+<li>Connector tham chiếu bất biến theo revision: muốn đổi connector phải tạo revision mới.</li>
+<li>Connector chỉ dùng được với endpoint HomeRegion. Endpoint MultiRegion hoặc PerRegion bị từ chối.</li>
+<li>Connector cần compute resource type là WebFunction và ít nhất hai subnet ở hai AZ khác nhau. IPv6 cần connector DualStack, subnet có IPv6 CIDR và route <code>::/0</code>.</li>
+</ul>
+</section>
+
+<section id="multi-region">
+<h2>Multi-Region và streaming</h2>
+<p class="sub">Độ tin cậy: trung bình, vì các số liệu streaming đến từ tài liệu streaming chung của Lambda.</p>
+<ul class="tight">
+<li>Deploy một lần trên nhiều Region sau một endpoint, Lambda định tuyến theo độ trễ (best-effort) tới Region gần người dùng nhất. URL toàn cầu có dạng <code>&lt;domain-id&gt;.lambda-web.global.on.aws</code>, được thiết lập tự động bằng <code>--regions</code>.</li>
+<li>Nếu scale về 0, request có thể phải chờ environment khởi tạo.</li>
+<li>Response streaming của Lambda nói chung cho payload tới 200 MB (so với 6 MB khi buffer) và cải thiện time to first byte. Băng thông không giới hạn cho 6 MB đầu, sau đó khoảng 2 MBps.</li>
+<li>Streaming truy cập được qua function URL, <code>InvokeWithResponseStream</code> hoặc tích hợp proxy của API Gateway.</li>
+</ul>
+<div class="callout bad">
+<p>Claim "managed runtime chỉ hỗ trợ streaming cho Node.js" đã bị bác bỏ (1-2) trong khâu kiểm chứng, đừng khẳng định điều này.</p>
+</div>
+</section>
+
+<section id="adapter">
+<h2>Quan hệ với Lambda Web Adapter</h2>
+<p class="sub">Độ tin cậy: trung bình, chỉ dựa trên README của aws-lambda-web-adapter.</p>
+<ul class="tight">
+<li>Adapter chạy một app HTTP không sửa đổi trên Lambda, dưới dạng binary tại <code>/opt/extensions/lambda-adapter</code> trong Docker image, hoặc layer cho gói zip với <code>AWS_LAMBDA_EXEC_WRAPPER=/opt/bootstrap</code>.</li>
+<li>README khuyến nghị dùng Web Functions cho app Node.js mới.</li>
+<li>Với runtime khác và container image, tiếp tục dùng Web Adapter cho tới khi Web Functions hỗ trợ native.</li>
+</ul>
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="Sơ đồ quyết định chọn Web Functions, Web Adapter hoặc phương án khác">
+<rect class="acc" x="15" y="20" width="160" height="70" rx="8"/>
+<text class="ttl sm" x="27" y="48">Runtime là Node.js?</text><text class="mut sm" x="27" y="68">(nodejs24.x)</text>
+<rect class="acc" x="205" y="20" width="160" height="70" rx="8"/>
+<text class="ttl sm" x="217" y="48">Deploy bằng .zip?</text><text class="mut sm" x="217" y="68">(không container image)</text>
+<rect class="acc" x="395" y="20" width="160" height="70" rx="8"/>
+<text class="ttl sm" x="407" y="46">Cần WebSocket hoặc</text><text class="ttl sm" x="407" y="64">PrivateLink?</text>
+<rect class="okb" x="600" y="20" width="150" height="70" rx="8"/>
+<text class="ttl sm" x="612" y="44">Web Functions</text><text class="mut sm" x="612" y="62">+ CloudFront nếu cần</text><text class="mut sm" x="612" y="78">custom domain, WAF</text>
+<rect class="box" x="15" y="140" width="160" height="70" rx="8"/>
+<text class="ttl sm" x="27" y="164">Web Adapter, Event</text><text class="ttl sm" x="27" y="182">Functions hoặc MicroVMs</text>
+<rect class="box" x="205" y="140" width="160" height="70" rx="8"/>
+<text class="ttl sm" x="217" y="164">Web Adapter</text><text class="mut sm" x="217" y="182">(container image)</text>
+<rect class="badb" x="395" y="140" width="160" height="70" rx="8"/>
+<text class="ttl sm" x="407" y="164">Chưa phù hợp</text><text class="mut sm" x="407" y="182">xem phần Giới hạn</text>
+<path class="ln" d="M175 55 H203" marker-end="url(#arr)"/><text class="mut sm" x="189" y="48" text-anchor="middle">Có</text>
+<path class="ln" d="M365 55 H393" marker-end="url(#arr)"/><text class="mut sm" x="379" y="48" text-anchor="middle">Có</text>
+<path class="ln" d="M555 55 H598" marker-end="url(#arr)"/><text class="mut sm" x="577" y="48" text-anchor="middle">Không</text>
+<path class="ln" d="M95 90 V138" marker-end="url(#arr)"/><text class="mut sm" x="104" y="118">Không</text>
+<path class="ln" d="M285 90 V138" marker-end="url(#arr)"/><text class="mut sm" x="294" y="118">Không</text>
+<path class="ln" d="M475 90 V138" marker-end="url(#arr)"/><text class="mut sm" x="484" y="118">Có</text>
+</svg>
+<figcaption>Sơ đồ là tổng hợp của người viết từ các giới hạn đã xác minh và README của adapter, không phải khuyến nghị nguyên văn của AWS.</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>Tình huống</th><th>Khuyến nghị theo nguồn AWS</th></tr></thead>
+<tbody>
+<tr><td>App Node.js mới (Express, Hono, React Router, Next.js standalone)</td><td>Web Functions</td></tr>
+<tr><td>Python, Java, .NET hoặc ngôn ngữ khác</td><td>Web Adapter, Event Functions hoặc MicroVMs</td></tr>
+<tr><td>Triển khai bằng container image</td><td>Web Adapter</td></tr>
+<tr><td>Cần private endpoint, custom domain trực tiếp, WebSocket</td><td>Chưa phù hợp với Web Functions (xem phần Giới hạn)</td></tr>
+</tbody>
+</table>
+</div>
+<p style="margin-top:10px" class="sub">Hàng cuối là suy luận của người viết từ các giới hạn đã xác minh, không phải khuyến nghị nguyên văn của AWS.</p>
+</section>
+
+<section id="han-che">
+<h2>Giới hạn khi ra mắt</h2>
+<div class="tablewrap">
+<table>
+<thead><tr><th>Giới hạn</th><th>Chi tiết</th></tr></thead>
+<tbody>
+<tr><td>Runtime</td><td>Chỉ <code>nodejs24.x</code> (Arm64 theo thông tin ra mắt)</td></tr>
+<tr><td>Endpoint</td><td>Public HTTPS, HTTP/1.1, không custom domain, không WAF trực tiếp, không PrivateLink, không WebSocket</td></tr>
+<tr><td>VPC</td><td>Chỉ egress qua network connector, chỉ endpoint HomeRegion</td></tr>
+<tr><td>Region</td><td>5 Region ra mắt</td></tr>
+<tr><td>Concurrency</td><td>Trần 128 mỗi environment, vượt thì 429, không xếp hàng</td></tr>
+<tr><td>Multi-Region</td><td>Định tuyến theo độ trễ ở mức best-effort</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+
+<section id="luu-y">
+<h2>Lưu ý về độ tin cậy và câu hỏi mở</h2>
+<div class="callout warn">
+<ul class="tight">
+<li>Tính năng mới được 2 ngày. Mọi nguồn chính đều là first-party AWS, chưa có benchmark hoặc báo cáo production độc lập.</li>
+<li>Các câu như "giảm cold start orders of magnitude" và "có thể giảm chi phí" là ngôn ngữ tiếp thị, chưa định lượng.</li>
+<li>Giá chỉ cho US East (N. Virginia) trên Arm và có thể đổi. Một con số 2 vCPU / 2 GB cho mỗi environment xuất hiện trong ghi chú của một agent kiểm chứng, nhưng chưa được xác nhận độc lập, nên không đưa vào bảng.</li>
+<li>Các số liệu streaming (200 MB, các đường invoke) đến từ tài liệu response streaming chung, không phải trang riêng của Web Functions.</li>
+</ul>
+</div>
+<h3>Câu hỏi còn mở</h3>
+<ul class="tight">
+<li>Active CPU time được đo thế nào (cách lấy mẫu, mức tối thiểu, hành vi khi 128 request chia sẻ CPU)? Giá x86 và các Region khác là bao nhiêu?</li>
+<li>Khi nào có Python, Java, .NET hoặc container image? Danh sách Region có mở rộng không?</li>
+<li>Số đo thực tế về cold start, độ trễ và chi phí so với Event Functions, Lambda Web Adapter, Fargate và App Runner cho SSR và AI streaming?</li>
+<li>Egress connector có thể kết hợp với endpoint MultiRegion hoặc PerRegion trong tương lai không? Hiện tại truy cập data store private trong multi-Region nên làm thế nào?</li>
+</ul>
+</section>
+
+<section id="nguon">
+<h2>Nguồn và bằng chứng</h2>
+<div class="viz">
+<h4>Phễu kiểm chứng</h4>
+<p class="note">Từ 90 claim trích xuất, 25 claim quan trọng nhất được kiểm chứng đối kháng bằng 3 phiếu (cần 2 phiếu bác bỏ để loại).</p>
+<div class="bars">
+<div class="bar"><span>Claim trích xuất</span><div class="track"><div class="fill mut" style="width:100%">90</div></div></div>
+<div class="bar"><span>Claim được kiểm chứng</span><div class="track"><div class="fill" style="width:27.8%">25</div></div></div>
+<div class="bar"><span>Xác nhận</span><div class="track"><div class="fill ok" style="width:26.7%">24</div></div></div>
+<div class="bar"><span>Bị bác bỏ</span><div class="track"><div class="fill bad" style="width:2%">1</div></div></div>
+</div>
+</div>
+
+<div class="viz">
+<h4>Nguồn theo loại (19 nguồn)</h4>
+<div class="stack" role="img" aria-label="11 nguồn primary, 6 blog, 1 secondary, 1 unreliable">
+<span style="width:57.9%;background:var(--ok)">11</span>
+<span style="width:31.6%;background:var(--warn)">6</span>
+<span style="width:5.3%;background:var(--accent)">1</span>
+<span style="width:5.3%;background:var(--bad)">1</span>
+</div>
+<div class="legend">
+<span><i style="background:var(--ok)"></i>Primary (tài liệu và blog AWS, README): 11</span>
+<span><i style="background:var(--warn)"></i>Blog: 6</span>
+<span><i style="background:var(--accent)"></i>Secondary: 1</span>
+<span><i style="background:var(--bad)"></i>Unreliable (không trích được claim): 1</span>
+</div>
+</div>
+
+<div class="viz">
+<h4>Độ tin cậy của 8 kết luận sau tổng hợp</h4>
+<div class="stack" role="img" aria-label="6 kết luận độ tin cậy cao, 2 trung bình">
+<span style="width:75%;background:var(--ok)">Cao: 6</span>
+<span style="width:25%;background:var(--warn)">Trung bình: 2</span>
+</div>
+<div class="legend">
+<span>Trung bình: streaming và multi-Region, quan hệ với Web Adapter (cùng dựa trên một nguồn hoặc tài liệu chung).</span>
+</div>
+</div>
+
+<p class="sub">Mở từng mục để xem trích dẫn bằng chứng của các nhóm claim.</p>
+
+<details>
+<summary>Định nghĩa và vị trí của Web Functions (cao, 3-0)</summary>
+<div class="ev">What's New (12/10/2026): "a new serverless compute primitive where your code handles HTTP requests directly". News Blog: "a new form factor that lets you run standard HTTP web applications on Lambda". Compute Blog (13/10): "your code runs as a standard HTTP server that listens on a port".</div>
+</details>
+<details>
+<summary>Mô hình lập trình và deploy (cao, 3-0)</summary>
+<div class="ev">Developer Guide: "You can use familiar Node.js web frameworks such as Express, Hono, or React Router with no Lambda-specific adapters or wrappers" và "currently support Node.js runtimes only". Trang runtimes chỉ liệt kê nodejs24.x.</div>
+</details>
+<details>
+<summary>Concurrency (cao, 3-0)</summary>
+<div class="ev">What's New: "A single warm execution environment can serve multiple concurrent requests". News Blog: tối đa 128 request đồng thời mỗi environment. Compute Blog: mặc định 64, environment Event Function phục vụ một request một lúc và bị freeze giữa các lần invoke.</div>
+</details>
+<details>
+<summary>Billing (cao, 3-0)</summary>
+<div class="ev">Developer Guide: "You pay for requests, active CPU time, memory consumed over the life of each execution environment, and data transfer". Pricing page: "Compute is billed at 1 ms granularity", kèm ví dụ request mở 3.000 ms với 200 ms active CPU.</div>
+</details>
+<details>
+<summary>Networking (cao, 3-0)</summary>
+<div class="ev">Trang networking: "A Web Function runs on infrastructure that Lambda owns and manages, not inside your VPC", "AWS PrivateLink interface endpoints aren't available for Web Function endpoint domain names", "Lambda does not support WebSocket upgrades".</div>
+</details>
+
+<h3>Danh sách nguồn</h3>
+<table>
+<thead><tr><th>Nguồn</th><th>Loại</th></tr></thead>
+<tbody>
+<tr><td class="src"><a href="https://aws.amazon.com/about-aws/whats-new/2026/10/aws-lambda-web-functions/" rel="noopener">aws.amazon.com - What's New: AWS Lambda Web Functions</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://aws.amazon.com/blogs/aws/announcing-aws-lambda-web-functions-for-fast-consistent-web-app-performance-anywhere/" rel="noopener">AWS News Blog - Announcing AWS Lambda Web Functions</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://aws.amazon.com/blogs/compute/exploring-aws-lambda-web-functions-for-building-web-applications/" rel="noopener">AWS Compute Blog - Exploring AWS Lambda Web Functions</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://docs.aws.amazon.com/lambda/latest/dg/web-functions.html" rel="noopener">Developer Guide - Web Functions</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://docs.aws.amazon.com/lambda/latest/dg/web-functions-networking.html" rel="noopener">Developer Guide - Web Functions networking</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://docs.aws.amazon.com/lambda/latest/dg/configuration-response-streaming.html" rel="noopener">Developer Guide - Response streaming</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://aws.amazon.com/lambda/pricing/" rel="noopener">AWS Lambda Pricing</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://github.com/aws/aws-lambda-web-adapter" rel="noopener">github.com/aws/aws-lambda-web-adapter</a></td><td><span class="tag ok">Primary</span></td></tr>
+<tr><td class="src"><a href="https://awsteele.com/blog/2026/10/12/some-notes-on-lambda-web-functions.html" rel="noopener">Aidan Steele - Some notes on Lambda Web Functions</a></td><td><span class="tag warn">Blog độc lập</span></td></tr>
+<tr><td class="src"><a href="https://dev.classmethod.jp/articles/aws-lambda-web-functions-source-analysis/" rel="noopener">Classmethod - phân tích trước ra mắt</a></td><td><span class="tag warn">Blog</span></td></tr>
+</tbody>
+</table>
+</section>
+
+</main>
+
+<footer>
+<div class="wrap">
+Tạo ngày 14/10/2026 từ workflow deep-research: 102 agent, 6 góc tìm kiếm, 19 nguồn, 90 claim trích xuất, 25 claim kiểm chứng đối kháng (24 xác nhận, 1 bị bác bỏ). Xác minh lại với tài liệu AWS trước khi dùng cho quyết định kiến trúc hoặc chi phí.
+</div>
+</footer>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (n) { return n.toLocaleString("en-US"); };
+  var usd = function (x) { return "$" + x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+
+  function sim() {
+    var n = +$("in-n").value, lim = +$("in-lim").value;
+    var envs = Math.ceil(n / lim);
+    $("o-n").textContent = fmt(n);
+    $("o-lim").textContent = fmt(lim);
+    $("s-ev").textContent = fmt(n) + " environment";
+    $("s-web").textContent = fmt(envs) + " environment";
+    $("s-ratio").textContent = (n / envs).toFixed(1) + "x";
+    var ev = document.createDocumentFragment();
+    for (var i = 0; i < n; i++) { var d = document.createElement("span"); d.className = "dot"; ev.appendChild(d); }
+    var web = document.createDocumentFragment();
+    for (var j = 0; j < envs; j++) {
+      var load = Math.min(lim, n - j * lim);
+      var e = document.createElement("span"); e.className = "env"; e.title = load + " / " + lim + " request";
+      var f = document.createElement("i"); f.style.height = (100 * load / lim) + "%";
+      e.appendChild(f); web.appendChild(e);
+    }
+    $("v-ev").replaceChildren(ev);
+    $("v-web").replaceChildren(web);
+  }
+
+  var CPU_RATE = 0.0000276944;
+  var REQ_FEE = 0.30;
+  function cost() {
+    var dur = +$("in-dur").value;
+    var cpuEl = $("in-cpu");
+    cpuEl.max = dur;
+    if (+cpuEl.value > dur) cpuEl.value = dur;
+    var cpu = +cpuEl.value, req = +$("in-req").value;
+    $("o-dur").textContent = fmt(dur) + " ms";
+    $("o-cpu").textContent = fmt(cpu) + " ms (" + (100 * cpu / dur).toFixed(1) + "%)";
+    $("o-req").textContent = fmt(req) + " triệu";
+    var cpuPerM = (cpu / 1000) * CPU_RATE * 1e6;
+    var allPerM = (dur / 1000) * CPU_RATE * 1e6;
+    var tot = cpuPerM + REQ_FEE;
+    $("b-act").style.width = Math.max(100 * cpu / dur, 0.5) + "%";
+    $("b-act").textContent = usd(cpuPerM);
+    $("b-all").style.width = "100%";
+    $("b-all").textContent = usd(allPerM);
+    $("c-cpu").textContent = usd(cpuPerM);
+    $("c-reqfee").textContent = usd(REQ_FEE);
+    $("c-tot").textContent = usd(tot);
+    $("c-month").textContent = usd(tot * req);
+  }
+
+  ["in-n", "in-lim"].forEach(function (id) { $(id).addEventListener("input", sim); });
+  ["in-dur", "in-cpu", "in-req"].forEach(function (id) { $(id).addEventListener("input", cost); });
+  sim();
+  cost();
+})();
+</script>
+
+</body>
+</html>
