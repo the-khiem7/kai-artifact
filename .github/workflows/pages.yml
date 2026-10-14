@@ -1,0 +1,74 @@
+name: Deploy artifacts to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "artifacts/**"
+      - "scripts/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to push the regenerated README section back to main.
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: pages
+        uses: actions/configure-pages@v6
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Update README artifact index
+        env:
+          BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python scripts/build_site.py readme --base-url "$BASE_URL"
+
+      # A push made with GITHUB_TOKEN does not trigger another workflow run, so this cannot loop.
+      - name: Commit README if changed
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "README.md unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs(readme): update artifact index"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:$GITHUB_REF_NAME"
+
+      - name: Build site
+        env:
+          BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: python scripts/build_site.py site --base-url "$BASE_URL" --out _site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
