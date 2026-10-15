@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CloudFront Rule Budget</title>
+<meta name="description" content="Why a security group rule that points at the CloudFront managed prefix list uses 55 of its 60 rule slots, and how referencing the CloudFront VPC origin security group costs 1 slot instead.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow column of diagram panels, each with a one-line takeaway; slot colours mean the same thing everywhere (amber = prefix list, green = security group, red = does not fit, grey = free). */
+:root {
+  --bg:#f3f5f7; --surface:#ffffff; --fg:#17202a; --muted:#566373; --border:#d5dce3; --line:#8794a3;
+  --pl:#b7791f; --pl-f:#fbefd5; --sg:#1f8a5b; --sg-f:#d9f2e5; --over:#c43d3d; --over-f:#fbe0e0; --free:#e6eaef; --free-s:#a9b4c0;
+  --accent:#0f6f8f;
+  --sans:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif; --mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#11161c; --surface:#19212a; --fg:#e5eaf0; --muted:#9aa8b7; --border:#2c3744; --line:#7d8a99;
+  --pl:#e0a94a; --pl-f:#3b2f16; --sg:#4cc58e; --sg-f:#16362a; --over:#ef7070; --over-f:#47201f; --free:#26303b; --free-s:#56636f;
+  --accent:#4fb3d6; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#11161c; --surface:#19212a; --fg:#e5eaf0; --muted:#9aa8b7; --border:#2c3744; --line:#7d8a99;
+  --pl:#e0a94a; --pl-f:#3b2f16; --sg:#4cc58e; --sg-f:#16362a; --over:#ef7070; --over-f:#47201f; --free:#26303b; --free-s:#56636f;
+  --accent:#4fb3d6; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; padding-inline:16px; padding-block:28px 56px; background:var(--bg); color:var(--fg); font:15px/1.5 var(--sans); }
+main { max-width:900px; margin:0 auto; display:grid; gap:22px; }
+h1 { font-size:26px; line-height:1.2; margin:0; text-wrap:balance; }
+h2 { font-size:12.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); margin:0 0 8px; font-weight:600; }
+.lead { margin:6px 0 0; color:var(--muted); max-width:65ch; }
+.ctx { font:12.5px var(--mono); color:var(--muted); margin-top:8px; }
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; min-width:0; display:grid; gap:10px; }
+.take { margin:0; font-weight:600; font-size:15.5px; }
+.take .n { font-family:var(--mono); }
+.scroll { overflow-x:auto; }
+svg { display:block; width:100%; height:auto; min-width:560px; font:12.5px var(--sans); }
+svg text { fill:var(--fg); } svg .mu { fill:var(--muted); font-size:11.5px; } svg .b { font-weight:600; } svg .mo { font-family:var(--mono); font-size:11.5px; }
+svg .t-pl { fill:var(--pl); font-weight:600; } svg .t-sg { fill:var(--sg); font-weight:600; } svg .t-over { fill:var(--over); font-weight:700; }
+svg .box { fill:var(--surface); stroke:var(--line); stroke-width:1.3; } svg .box-pl { fill:var(--pl-f); stroke:var(--pl); stroke-width:1.6; } svg .box-sg { fill:var(--sg-f); stroke:var(--sg); stroke-width:1.6; } svg .box-over { fill:var(--over-f); stroke:var(--over); stroke-width:1.6; }
+svg .arr { stroke:var(--line); stroke-width:1.5; fill:none; } svg .arr-pl { stroke:var(--pl); stroke-width:2; fill:none; } svg .arr-sg { stroke:var(--sg); stroke-width:2; fill:none; }
+svg .mk { fill:var(--line); } svg .mk-pl { fill:var(--pl); } svg .mk-sg { fill:var(--sg); }
+svg .s-pl { fill:var(--pl-f); stroke:var(--pl); stroke-width:1; } svg .s-sg { fill:var(--sg-f); stroke:var(--sg); stroke-width:1.4; } svg .s-over { fill:var(--over-f); stroke:var(--over); stroke-width:1.2; } svg .s-free { fill:var(--free); stroke:var(--free-s); stroke-width:1; }
+svg .c-used { fill:var(--pl-f); stroke:var(--pl); stroke-width:1; } svg .c-res { fill:var(--surface); stroke:var(--pl); stroke-width:1; stroke-dasharray:3 2; }
+.key { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:var(--muted); }
+.key span { display:inline-flex; align-items:center; gap:6px; }
+.key i { width:12px; height:12px; border-radius:2px; display:inline-block; border:1px solid; }
+.k-pl { background:var(--pl-f); border-color:var(--pl) !important; } .k-sg { background:var(--sg-f); border-color:var(--sg) !important; } .k-over { background:var(--over-f); border-color:var(--over) !important; } .k-free { background:var(--free); border-color:var(--free-s) !important; }
+.tw { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13.5px; min-width:520px; }
+th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+th { font-size:12px; color:var(--muted); font-weight:600; }
+td.num { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.pill { display:inline-block; padding:1px 9px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
+.p-ok { background:var(--sg-f); color:var(--sg); } .p-no { background:var(--over-f); color:var(--over); } .p-mid { background:var(--pl-f); color:var(--pl); }
+.wrong { color:var(--over); font-weight:600; } .right { color:var(--sg); font-weight:600; }
+code { font-family:var(--mono); font-size:12.5px; overflow-wrap:anywhere; }
+a { color:var(--accent); } a:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.src { font-size:12.5px; color:var(--muted); display:grid; gap:4px; margin:0; padding-left:18px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Why port 8081 cannot use the CloudFront prefix list</h1>
+  <p class="lead">A security group has 60 rule slots. One rule that points at the CloudFront prefix list uses 55 of them.</p>
+  <div class="ctx">Shared ALB · ap-southeast-1 · read 2026-10-14</div>
+</header>
+
+<section class="panel" aria-labelledby="h1a">
+  <h2 id="h1a">1 · What the CloudFront prefix list is</h2>
+  <div class="scroll"><svg viewBox="0 0 640 150" role="img" aria-label="One list of IP ranges shared by all of CloudFront: 46 ranges used today and 9 reserved, so AWS counts the list as 55">
+    <defs><marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker></defs>
+    <rect class="box" x="0" y="34" width="190" height="64" rx="8"/>
+    <text class="b" x="12" y="58">All of CloudFront</text><text class="mu" x="12" y="76">every distribution,</text><text class="mu" x="12" y="91">Project 1's and Project 2's alike</text>
+    <path class="arr" marker-end="url(#m1)" d="M190 66 H240"/><text class="mu" x="196" y="58">calls from</text>
+    <g transform="translate(250 6)">
+<rect class="c-used" x="0" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="30" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="60" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="90" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="120" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="150" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="180" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="210" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="240" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="270" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="300" y="0" width="26" height="18" rx="3"/><rect class="c-used" x="0" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="30" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="60" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="90" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="120" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="150" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="180" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="210" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="240" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="270" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="300" y="22" width="26" height="18" rx="3"/><rect class="c-used" x="0" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="30" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="60" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="90" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="120" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="150" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="180" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="210" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="240" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="270" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="300" y="44" width="26" height="18" rx="3"/><rect class="c-used" x="0" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="30" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="60" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="90" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="120" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="150" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="180" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="210" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="240" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="270" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="300" y="66" width="26" height="18" rx="3"/><rect class="c-used" x="0" y="88" width="26" height="18" rx="3"/><rect class="c-used" x="30" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="60" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="90" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="120" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="150" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="180" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="210" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="240" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="270" y="88" width="26" height="18" rx="3"/><rect class="c-res" x="300" y="88" width="26" height="18" rx="3"/>
+    </g>
+    <text class="t-pl" x="250" y="134">46 IP ranges today</text><text class="mu" x="384" y="134">+ 9 reserved for growth</text><text class="b" x="530" y="134">= counts as 55</text>
+  </svg></div>
+  <p class="take">One shared list. It is not one list per distribution. AWS counts its full size, <span class="n">55</span>, because CloudFront can add ranges at any time.</p>
+</section>
+
+<section class="panel" aria-labelledby="h1b">
+  <h2 id="h1b">2 · The same list, used by two rules, is counted twice</h2>
+  <div class="scroll"><svg viewBox="0 0 640 170" role="img" aria-label="Rule for port 80 and rule for port 8081 both point at the same CloudFront prefix list; each rule costs 55 slots, total 110, more than the 60 allowed">
+    <defs><marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk-pl" d="M0 0L10 5L0 10z"/></marker></defs>
+    <rect class="box" x="0" y="14" width="200" height="54" rx="8"/><text class="b" x="12" y="37">Rule · port 80</text><text class="mu" x="12" y="55">Project 1, exists today</text>
+    <rect class="box-over" x="0" y="100" width="200" height="54" rx="8"/><text class="b" x="12" y="123">Rule · port 8081</text><text class="mu" x="12" y="141">Project 2, if written this way</text>
+    <rect class="box-pl" x="250" y="56" width="150" height="56" rx="8"/><text class="b" x="262" y="80">CloudFront</text><text class="mu" x="262" y="98">prefix list</text>
+    <path class="arr-pl" marker-end="url(#m2)" d="M200 41 L250 72"/><path class="arr-pl" marker-end="url(#m2)" d="M200 127 L250 98"/>
+    <text class="t-pl mo" x="210" y="34">55</text><text class="t-pl mo" x="210" y="152">55</text>
+    <rect class="box-over" x="450" y="56" width="190" height="56" rx="8"/><text class="t-over" x="462" y="80">55 + 55 = 110</text><text class="mu" x="462" y="98">limit 60 · AWS rejects rule</text>
+    <path class="arr" d="M400 84 H450"/>
+  </svg></div>
+  <p class="take">The cost comes from each rule that points at the list, not from a new distribution.</p>
+</section>
+
+<section class="panel" aria-labelledby="h1c">
+  <h2 id="h1c">3 · The 60 slots of the ALB security group</h2>
+  <div class="key"><span><i class="k-pl"></i>prefix-list rule (55)</span><span><i class="k-sg"></i>security-group rule (1)</span><span><i class="k-over"></i>does not fit</span><span><i class="k-free"></i>free</span></div>
+  <div class="scroll"><svg viewBox="0 0 640 228" role="img" aria-label="Today 55 of 60 slots used. Adding port 8081 through the prefix list needs 55 more, only 5 are free, rejected. Adding port 8081 through the CloudFront security group needs 1, fits at 56 of 60.">
+    <text class="b" x="0" y="14">Today</text><text class="mu" x="600" y="14" text-anchor="end">55 / 60</text>
+    <g transform="translate(0 22)">
+<rect class="s-pl" x="0" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="10" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="20" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="30" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="40" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="50" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="60" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="70" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="80" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="90" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="100" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="110" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="120" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="130" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="140" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="150" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="160" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="170" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="180" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="190" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="200" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="210" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="220" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="230" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="240" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="250" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="260" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="270" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="280" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="290" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="300" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="310" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="320" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="330" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="340" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="350" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="360" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="370" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="380" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="390" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="400" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="410" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="420" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="430" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="440" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="450" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="460" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="470" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="480" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="490" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="500" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="510" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="520" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="530" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="540" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="550" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="560" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="570" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="580" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="590" y="0" width="8" height="22" rx="2"/>
+    </g>
+    <text class="b" x="0" y="88" style="fill:var(--over)">+ port 8081 via prefix list</text><text class="t-over" x="600" y="88" text-anchor="end">110 / 60 ✗</text>
+    <g transform="translate(0 96)">
+<rect class="s-pl" x="0" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="10" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="20" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="30" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="40" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="50" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="60" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="70" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="80" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="90" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="100" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="110" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="120" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="130" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="140" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="150" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="160" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="170" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="180" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="190" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="200" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="210" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="220" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="230" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="240" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="250" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="260" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="270" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="280" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="290" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="300" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="310" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="320" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="330" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="340" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="350" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="360" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="370" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="380" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="390" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="400" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="410" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="420" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="430" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="440" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="450" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="460" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="470" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="480" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="490" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="500" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="510" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="520" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="530" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="540" y="0" width="8" height="22" rx="2"/><rect class="s-over" x="550" y="0" width="8" height="22" rx="2"/><rect class="s-over" x="560" y="0" width="8" height="22" rx="2"/><rect class="s-over" x="570" y="0" width="8" height="22" rx="2"/><rect class="s-over" x="580" y="0" width="8" height="22" rx="2"/><rect class="s-over" x="590" y="0" width="8" height="22" rx="2"/>
+    </g>
+    <text class="mu" x="0" y="136">needs 55, only 5 free</text>
+    <text class="b" x="0" y="174" style="fill:var(--sg)">+ port 8081 via CloudFront security group</text><text class="t-sg" x="600" y="174" text-anchor="end">56 / 60 ✓</text>
+    <g transform="translate(0 182)">
+<rect class="s-pl" x="0" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="10" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="20" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="30" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="40" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="50" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="60" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="70" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="80" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="90" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="100" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="110" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="120" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="130" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="140" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="150" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="160" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="170" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="180" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="190" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="200" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="210" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="220" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="230" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="240" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="250" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="260" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="270" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="280" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="290" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="300" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="310" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="320" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="330" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="340" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="350" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="360" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="370" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="380" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="390" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="400" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="410" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="420" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="430" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="440" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="450" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="460" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="470" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="480" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="490" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="500" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="510" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="520" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="530" y="0" width="8" height="22" rx="2"/><rect class="s-pl" x="540" y="0" width="8" height="22" rx="2"/><rect class="s-sg" x="550" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="560" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="570" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="580" y="0" width="8" height="22" rx="2"/><rect class="s-free" x="590" y="0" width="8" height="22" rx="2"/>
+    </g>
+    <text class="mu" x="0" y="222">needs 1</text>
+  </svg></div>
+</section>
+
+<section class="panel" aria-labelledby="h1d">
+  <h2 id="h1d">4 · The fix: point the 8081 rule at a security group</h2>
+  <div class="scroll"><svg viewBox="0 0 640 128" role="img" aria-label="The Project 2 rule for port 8081 allows traffic from the security group CloudFront creates for VPC origins; a security group counts as one slot">
+    <defs><marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk-sg" d="M0 0L10 5L0 10z"/></marker></defs>
+    <rect class="box-sg" x="0" y="30" width="230" height="64" rx="8"/><text class="b" x="12" y="54">CloudFront-VPCOrigins-Service-SG</text><text class="mu" x="12" y="72">created by CloudFront for VPC origins</text><text class="mu" x="12" y="87">exists today in the shared VPC</text>
+    <path class="arr-sg" marker-end="url(#m4)" d="M230 62 H300"/><text class="t-sg mo" x="246" y="54">1 slot</text>
+    <rect class="box" x="300" y="30" width="160" height="64" rx="8"/><text class="b" x="312" y="54">ALB security group</text><text class="mu" x="312" y="72">rule: allow TCP 8081</text>
+    <path class="arr" d="M460 62 H500"/>
+    <rect class="box" x="500" y="30" width="140" height="64" rx="8"/><text class="b" x="512" y="54">Listener :8081</text><text class="mu" x="512" y="72">default → Project 2</text>
+  </svg></div>
+  <div class="tw"><table>
+    <thead><tr><th>Source of the 8081 rule</th><th>Slots</th><th>Who can reach port 8081</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>CloudFront prefix list</td><td class="num">55</td><td>Any CloudFront server, of any AWS customer</td><td><span class="pill p-no">rejected, over 60</span></td></tr>
+      <tr><td><code>CloudFront-VPCOrigins-Service-SG</code></td><td class="num">1</td><td>Only CloudFront distributions of this account, through a VPC origin</td><td><span class="pill p-ok">fits, and stricter</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="panel" aria-labelledby="h1e">
+  <h2 id="h1e">5 · Common misreadings</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Sounds right</th><th>Actually</th></tr></thead>
+    <tbody>
+      <tr><td class="wrong">A new distribution adds 55 more IPs</td><td class="right">One list serves all of CloudFront. A new rule that points at it adds 55.</td></tr>
+      <tr><td class="wrong">55 means 55 IP addresses</td><td class="right">55 is the reserved size of a list of IP ranges. Each range holds many addresses; 46 ranges exist today.</td></tr>
+      <tr><td class="wrong">The fix reuses Project 1's IP ranges</td><td class="right">The fix changes what the rule points at: a security group (1 slot) instead of a list (55).</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="panel" aria-labelledby="h1f">
+  <h2 id="h1f">6 · Ways out, compared</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Option</th><th>Slots after</th><th>Touches Project 1</th><th>Trade-off</th></tr></thead>
+    <tbody>
+      <tr><td><b>a</b> · 8081 from CloudFront security group</td><td class="num">56</td><td><span class="pill p-ok">no</span></td><td>Stricter source; whether the Project 2 VPC origin reuses the same group is not tested yet</td></tr>
+      <tr><td><b>b</b> · Raise the quota to 120 rules</td><td class="num">110</td><td><span class="pill p-ok">no</span></td><td>Free, but changes the limit for every security group in the region</td></tr>
+      <tr><td><b>c</b> · Widen the port 80 rule to 80-8081</td><td class="num">55</td><td><span class="pill p-no">yes</span></td><td>Edits the Project 1 state and opens ports 81-8080 to all of CloudFront</td></tr>
+    </tbody>
+  </table></div>
+  <p class="take">Recommended: <b>a</b>.</p>
+</section>
+
+<section class="panel" aria-labelledby="h1g">
+  <h2 id="h1g">Sources</h2>
+  <ul class="src">
+    <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/working-with-aws-managed-prefix-lists.html" target="_blank" rel="noopener">AWS-managed prefix list weight</a>: CloudFront list weight 55; with the default 60 rules "only 5 additional rules" remain.</li>
+    <li><a href="https://docs.aws.amazon.com/vpc/latest/userguide/amazon-vpc-limits.html" target="_blank" rel="noopener">Amazon VPC quotas</a>: 60 inbound rules per security group, adjustable; a referenced prefix list counts its maximum entries.</li>
+    <li><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html" target="_blank" rel="noopener">CloudFront VPC origins</a>: allow inbound from the prefix list or from <code>CloudFront-VPCOrigins-Service-SG</code>, which "restricts the traffic only to your CloudFront distributions".</li>
+    <li>Read-only AWS CLI, 2026-10-14: quota <code>L-0EA8095F</code> = 60; the ALB security group holds one rule, TCP 80 from the CloudFront prefix list; the list has 46 entries; <code>CloudFront-VPCOrigins-Service-SG</code> exists in the shared VPC.</li>
+  </ul>
+</section>
+
+</main>
+</body>
+</html>

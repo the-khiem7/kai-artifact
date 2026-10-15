@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shared ALB Entry Options</title>
+<meta name="description" content="Five ways a second project can reach its backend behind CloudFront on a shared AWS account, compared on cost, failure behaviour, isolation and Terraform ownership, with the security-group rule budget that decides between a shared and a separate ALB.">
+<style>
+/* Layout: context diagram, one card per solution (diagram + 3 bullets), failure behaviour, cost, matrix, recommendation, evidence. Solution colours k1..k6 repeat everywhere. */
+:root {
+  --bg:#f6f7f9; --surface:#ffffff; --fg:#1a1f26; --muted:#5d6876; --border:#d7dde4; --line:#7f8b99;
+  --k1:#2f6fca; --k1f:#e2ecfb; --k2:#0e8a78; --k2f:#d8f1ec; --k3:#4f8a1f; --k3f:#e4f2da; --k4:#c27a00; --k4f:#fbefd6; --k5:#7a4fc1; --k5f:#ede5fb; --k6:#8a5a44; --k6f:#f0e4dd;
+  --good:#1d8a3a; --good-f:#dcf2e1; --mid:#9a6b00; --mid-f:#fbefcf; --crit:#c63b3b; --crit-f:#fbe1e1;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace; --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg:#12151a; --surface:#1a1e24; --fg:#e6eaef; --muted:#9ba7b4; --border:#2e353e; --line:#7c8896;
+  --k1:#5d9df0; --k1f:#1b2f4d; --k2:#3cc2ab; --k2f:#143a34; --k3:#8fcb5a; --k3f:#233618; --k4:#d49b2d; --k4f:#3e3114; --k5:#a986ec; --k5f:#2d2446; --k6:#d39a80; --k6f:#3a2a21;
+  --good:#45c167; --good-f:#173a22; --mid:#e0b040; --mid-f:#3d3315; --crit:#ec6b6b; --crit-f:#4a1d1d; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --bg:#12151a; --surface:#1a1e24; --fg:#e6eaef; --muted:#9ba7b4; --border:#2e353e; --line:#7c8896;
+  --k1:#5d9df0; --k1f:#1b2f4d; --k2:#3cc2ab; --k2f:#143a34; --k3:#8fcb5a; --k3f:#233618; --k4:#d49b2d; --k4f:#3e3114; --k5:#a986ec; --k5f:#2d2446; --k6:#d39a80; --k6f:#3a2a21;
+  --good:#45c167; --good-f:#173a22; --mid:#e0b040; --mid-f:#3d3315; --crit:#ec6b6b; --crit-f:#4a1d1d; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; padding-inline:16px; padding-block:24px 56px; background:var(--bg); color:var(--fg); font:15px/1.5 var(--sans); }
+main { max-width:1080px; margin:0 auto; display:flex; flex-direction:column; gap:28px; }
+h1 { font-size:23px; margin:0 0 4px; text-wrap:balance; }
+h2 { font-size:13px; margin:0 0 10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:650; }
+code { font-family:var(--mono); font-size:12.5px; }
+.muted { color:var(--muted); } .small { font-size:13px; }
+.legend { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.lg { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border:1px solid var(--border); border-radius:999px; background:var(--surface); font-size:12.5px; color:var(--muted); }
+.pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
+.pill.g { background:var(--good-f); color:var(--good); } .pill.w { background:var(--mid-f); color:var(--mid); } .pill.r { background:var(--crit-f); color:var(--crit); }
+figure { margin:0; }
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; min-width:0; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
+.card { background:var(--surface); border:1px solid var(--border); border-top:4px solid var(--line); border-radius:10px; padding:12px 14px; min-width:0; }
+.k1 { border-top-color:var(--k1); } .k2 { border-top-color:var(--k2); } .k3 { border-top-color:var(--k3); } .k4 { border-top-color:var(--k4); } .k5 { border-top-color:var(--k5); } .k6 { border-top-color:var(--k6); } .kx { border-top-color:var(--crit); }
+.card h3 { margin:0; font-size:15px; display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.card .id { font:700 11px var(--mono); padding:2px 6px; border-radius:5px; background:var(--bg); border:1px solid var(--border); color:var(--muted); }
+.card .tag { font:600 11px var(--sans); padding:2px 7px; border-radius:999px; background:var(--mid-f); color:var(--mid); }
+.card .one { font-size:13px; color:var(--muted); margin:3px 0 6px; }
+.facts { list-style:none; margin:8px 0 0; padding:0; display:grid; gap:3px; font-size:13px; }
+.facts li { display:flex; gap:7px; align-items:baseline; }
+.facts .y { color:var(--good); font-weight:700; } .facts .n { color:var(--crit); font-weight:700; } .facts .q { color:var(--mid); font-weight:700; }
+.ev { display:flex; flex-wrap:wrap; gap:4px; margin-top:8px; }
+.ev a { font:600 11.5px var(--mono); padding:2px 7px; border-radius:5px; border:1px solid var(--border); color:var(--muted); text-decoration:none; }
+.ev a:hover { color:var(--fg); border-color:var(--line); } .ev a.u { color:var(--mid); border-color:var(--mid); }
+.scroll { overflow-x:auto; } .scroll svg.wide { min-width:640px; }
+svg { display:block; width:100%; height:auto; font:12px var(--sans); color:var(--fg); }
+svg text { fill:var(--fg); } svg .s { fill:var(--muted); font-size:11px; } svg .b { font-weight:650; } svg .m { font-family:var(--mono); font-size:11px; }
+svg .wn { fill:var(--mid); font-weight:650; font-size:11px; } svg .cr { fill:var(--crit); font-weight:700; font-size:11px; } svg .gd { fill:var(--good); font-weight:700; font-size:11px; }
+svg .bx { fill:var(--surface); stroke:var(--line); stroke-width:1.4; } svg .gr { fill:var(--bg); stroke:var(--line); stroke-width:1.2; }
+svg .f1 { fill:var(--k1f); stroke:var(--k1); stroke-width:1.8; } svg .f2 { fill:var(--k2f); stroke:var(--k2); stroke-width:1.8; } svg .f3 { fill:var(--k3f); stroke:var(--k3); stroke-width:1.8; }
+svg .f4 { fill:var(--k4f); stroke:var(--k4); stroke-width:1.8; } svg .f5 { fill:var(--k5f); stroke:var(--k5); stroke-width:1.8; } svg .f6 { fill:var(--k6f); stroke:var(--k6); stroke-width:1.8; }
+svg .fbad { fill:var(--crit-f); stroke:var(--crit); stroke-width:1.6; } svg .fgood { fill:var(--good-f); stroke:var(--good); stroke-width:1.6; } svg .fmid { fill:var(--mid-f); stroke:var(--mid); stroke-width:1.6; }
+svg .cont { fill:none; stroke:var(--line); stroke-width:1.2; stroke-dasharray:4 4; }
+svg .ln { stroke:var(--line); stroke-width:1.5; fill:none; } svg .dsh { stroke-dasharray:5 4; } svg .lcr { stroke:var(--crit); stroke-width:1.8; fill:none; stroke-dasharray:4 3; }
+svg .l1 { stroke:var(--k1); stroke-width:2.4; fill:none; } svg .l2 { stroke:var(--k2); stroke-width:2.4; fill:none; } svg .l4 { stroke:var(--k4); stroke-width:2.4; fill:none; }
+svg .l5 { stroke:var(--k5); stroke-width:2.4; fill:none; } svg .l6 { stroke:var(--k6); stroke-width:2.4; fill:none; }
+svg .mk { fill:var(--line); } svg .m1 { fill:var(--k1); } svg .m2 { fill:var(--k2); } svg .m4 { fill:var(--k4); } svg .m5 { fill:var(--k5); } svg .m6 { fill:var(--k6); }
+table { width:100%; border-collapse:collapse; font-size:13.5px; }
+th, td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; } th { color:var(--muted); font-weight:600; font-size:12.5px; }
+.tablewrap { overflow-x:auto; background:var(--surface); border:1px solid var(--border); border-radius:10px; }
+.mx { min-width:780px; } .mx td:first-child { color:var(--muted); font-weight:600; white-space:nowrap; }
+.mx th.t1 { color:var(--k1); } .mx th.t2 { color:var(--k2); } .mx th.t3 { color:var(--k3); } .mx th.t4 { color:var(--k4); } .mx th.t5 { color:var(--k5); } .mx th.t6 { color:var(--k6); }
+.reco { background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--good); border-radius:6px; padding:12px 14px; display:grid; gap:8px; }
+.path { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:13px; }
+.path .st { padding:3px 10px; border-radius:6px; border:1px solid var(--border); background:var(--bg); } .path .ar { color:var(--muted); }
+.qs { margin:0; padding:0; list-style:none; display:grid; gap:8px; counter-reset:q; }
+.qs li { counter-increment:q; display:grid; grid-template-columns:34px 1fr; gap:8px; align-items:baseline; }
+.qs li::before { content:"Q" counter(q); font:700 12px var(--mono); color:var(--muted); }
+.qs b { font-weight:650; } .qs span { color:var(--muted); font-size:13px; display:block; }
+a { color:var(--k1); } a:focus-visible { outline:2px solid var(--k1); outline-offset:2px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>Project 2 entry architecture: how should traffic reach the Project 2 backend?</h1>
+  <p class="muted" style="margin:0">UAT environment (ap-southeast-1). Project 2 is the second project beside Project 1 (P1 = Project 1, P2 = Project 2). Three prioritised designs (S1, S2, S4) and two others, each with a diagram. S3 is now the Terraform state section. Evidence codes link to the sources at the bottom. 2026-10-14.</p>
+  <div class="legend">
+    <span class="lg"><span class="pill g">✓</span> strength</span>
+    <span class="lg"><span class="pill r">✗</span> weakness</span>
+    <span class="lg"><span class="pill w">?</span> not verified</span>
+    <span class="lg">Costs: AWS Price List API, ap-southeast-1</span>
+  </div>
+</header>
+
+<section>
+  <h2>The decision</h2>
+  <figure class="panel">
+    <div class="scroll"><svg class="wide" viewBox="0 0 760 232" role="img" aria-label="Browser to CloudFront for the Project 2 hostname; the default behavior goes to S3, the /api behavior goes to an entry tier that is the open decision, then to the ECS backend and the database; below, the existing Project 1 path through the existing ALB, with a dashed arrow asking whether Project 2 reuses it">
+      <defs><marker id="x-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker><marker id="x-w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m4" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="bx" x="0" y="34" width="86" height="44" rx="6"/><text class="b" x="10" y="54">Browser</text><text class="s" x="10" y="69">operator</text>
+      <rect class="bx" x="126" y="22" width="156" height="68" rx="6"/><text class="b" x="136" y="42">CloudFront</text><text class="m" x="136" y="58" style="font-size:10px">project-2.example.com</text><text class="s" x="136" y="76">same origin for / and /api</text>
+      <rect class="bx" x="346" y="2" width="140" height="40" rx="6"/><text class="b" x="356" y="20">S3 bucket</text><text class="s" x="356" y="34">console bundle</text>
+      <rect class="f4" x="346" y="62" width="150" height="56" rx="6" style="stroke-dasharray:5 3"/><text class="b" x="356" y="82">? Entry tier</text><text class="s" x="356" y="98">the open decision</text><text class="s" x="356" y="111">private subnets</text>
+      <rect class="bx" x="548" y="62" width="104" height="56" rx="6"/><text class="b" x="558" y="82">P2 backend</text><text class="s" x="558" y="98">ECS Fargate</text><text class="s" x="558" y="111">:8080</text>
+      <rect class="bx" x="684" y="42" width="76" height="36" rx="6"/><text class="b" x="692" y="58">RDS</text><text class="s" x="692" y="71">own instance</text>
+      <rect class="bx" x="684" y="96" width="76" height="36" rx="6"/><text class="b" x="692" y="112">IoT Core</text><text class="s" x="692" y="125">this account</text>
+      <path class="ln" marker-end="url(#x-m)" d="M86 56 H126"/>
+      <path class="ln" marker-end="url(#x-m)" d="M282 40 L346 24"/><text class="s" x="290" y="20">/*</text>
+      <path class="ln" marker-end="url(#x-m)" d="M282 74 L346 88"/><text class="s" x="300" y="94">/api/*</text>
+      <path class="ln" marker-end="url(#x-m)" d="M496 90 H548"/>
+      <path class="ln" marker-end="url(#x-m)" d="M652 76 L684 62"/><path class="ln" marker-end="url(#x-m)" d="M652 104 L684 112"/>
+      <rect class="gr" x="126" y="170" width="156" height="44" rx="6"/><text class="b" x="136" y="190">CloudFront</text><text class="s" x="136" y="205">Project 1 console</text>
+      <rect class="gr" x="346" y="170" width="150" height="44" rx="6"/><text class="b" x="356" y="190">shared-alb</text><text class="s" x="356" y="205">exists, internal</text>
+      <rect class="gr" x="548" y="170" width="104" height="44" rx="6"/><text class="b" x="558" y="190">Project 1</text><text class="s" x="558" y="205">ECS</text>
+      <path class="ln" marker-end="url(#x-m)" d="M282 192 H346"/><path class="ln" marker-end="url(#x-m)" d="M496 192 H548"/>
+      <path class="ln dsh" style="stroke:var(--k4)" marker-end="url(#x-w)" d="M421 118 V170"/><text class="wn" x="430" y="148">reuse it?</text>
+    </svg></div>
+    <figcaption class="small muted" style="margin-top:8px">The console is static, so only <code>/api/*</code> needs an entry tier. Constraints from the Project 2 code: the browser calls <code>/api</code> on its own origin, the backend builds its sign-in callback from <code>X-Forwarded-*</code> headers, and uploads reach 8 MB [E16].</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Prioritised solutions</h2>
+  <div class="cards">
+
+  <figure class="card k1">
+    <h3><span class="id">S1</span>Shared ALB, host rule</h3>
+    <p class="one">Project 2 adds a rule for its hostname to the Project 1 ALB.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="Both CloudFront distributions reach one ALB listener; rule 1 sends the Project 2 host to Project 2, the default sends everything else to Project 1">
+      <defs><marker id="s1-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker><marker id="s1-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m1" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="bx" x="4" y="16" width="70" height="38" rx="6"/><text class="b" x="12" y="33">CF · P1</text><text class="s" x="12" y="47">host: p1</text>
+      <rect class="f1" x="4" y="122" width="70" height="38" rx="6"/><text class="b" x="12" y="139">CF · P2</text><text class="s" x="12" y="153">host: p2</text>
+      <rect class="cont" x="104" y="4" width="130" height="164" rx="8"/><text class="s" x="112" y="19">one shared ALB</text>
+      <rect class="bx" x="114" y="28" width="110" height="130" rx="6"/><text class="b" x="122" y="46">Listener :80</text>
+      <rect class="f1" x="122" y="56" width="94" height="40" rx="5"/><text class="s" x="128" y="72">rule 1</text><text x="128" y="88" style="font-size:11px">p2 host → P2</text>
+      <rect class="bx" x="122" y="106" width="94" height="40" rx="5"/><text class="s" x="128" y="122">default</text><text x="128" y="138" style="font-size:11px">everything → P1</text>
+      <rect class="bx" x="268" y="16" width="68" height="38" rx="6"/><text x="276" y="33">P1</text><text class="s" x="276" y="47">tasks</text>
+      <rect class="f1" x="268" y="122" width="68" height="38" rx="6"/><text x="276" y="139">P2</text><text class="s" x="276" y="153">tasks</text>
+      <path class="ln" marker-end="url(#s1-m)" d="M74 35 L114 112"/><path class="l1" marker-end="url(#s1-a)" d="M74 141 L114 84"/>
+      <path class="l1" marker-end="url(#s1-a)" d="M216 76 L268 138"/><path class="ln" marker-end="url(#s1-m)" d="M216 126 L268 40"/>
+      <text class="cr" x="4" y="188">✗ unmatched Project 2 request lands on Project 1</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>0 USD extra; no new component</li>
+      <li><span class="n">✗</span>Routing for Project 2 lives on an ALB another project owns</li>
+      <li><span class="n">✗</span>Depends on CloudFront forwarding the Host header</li>
+    </ul>
+    <div class="ev"><a href="#E3">E3</a><a href="#E4">E4</a><a href="#E14">E14</a></div>
+  </figure>
+
+  <figure class="card k2">
+    <h3><span class="id">S2</span>Shared ALB, one listener per project <span class="tag" style="background:var(--good-f);color:var(--good)">chosen by SA 2026-10-14</span></h3>
+    <p class="one">Project 2 gets its own port on the same ALB; its default action is Project 2.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="Same ALB with two listeners: port 80 defaults to Project 1, port 8081 defaults to Project 2; each CloudFront distribution uses its own origin port">
+      <defs><marker id="s2-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker><marker id="s2-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m2" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="bx" x="4" y="26" width="76" height="40" rx="6"/><text class="b" x="12" y="44">CF · P1</text><text class="s" x="12" y="58">origin :80</text>
+      <rect class="f2" x="4" y="116" width="76" height="40" rx="6"/><text class="b" x="12" y="134">CF · P2</text><text class="s" x="12" y="148">origin :8081</text>
+      <rect class="cont" x="108" y="4" width="126" height="164" rx="8"/><text class="s" x="116" y="19">one shared ALB</text>
+      <rect class="bx" x="118" y="26" width="106" height="44" rx="6"/><text x="126" y="44">Listener :80</text><text class="s" x="126" y="60">default → P1</text>
+      <rect class="f2" x="118" y="116" width="106" height="44" rx="6"/><text x="126" y="134">Listener :8081</text><text class="s" x="126" y="150">default → Project 2</text>
+      <rect class="bx" x="268" y="26" width="68" height="40" rx="6"/><text x="276" y="44">P1</text><text class="s" x="276" y="58">tasks</text>
+      <rect class="f2" x="268" y="116" width="68" height="40" rx="6"/><text x="276" y="134">P2</text><text class="s" x="276" y="148">tasks</text>
+      <path class="ln" marker-end="url(#s2-m)" d="M80 46 H118"/><path class="l2" marker-end="url(#s2-a)" d="M80 136 H118"/>
+      <path class="ln" marker-end="url(#s2-m)" d="M224 48 H268"/><path class="l2" marker-end="url(#s2-a)" d="M224 138 H268"/>
+      <text class="wn" x="4" y="186">? two origins on one ALB: untested</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>0 USD extra; a failure stays in the Project 2 path</li>
+      <li><span class="y">✓</span>No Host header dependency</li>
+      <li><span class="n">✗</span>One ALB incident still takes both consoles down</li>
+    </ul>
+    <div class="ev"><a href="#E3">E3</a><a href="#E14">E14</a><a class="u" href="#E2">E2 ?</a></div>
+  </figure>
+
+  <figure class="card k4">
+    <h3><span class="id">S4</span>Separate ALB per project</h3>
+    <p class="one">Project 2 gets its own internal ALB: a fully independent path.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="Two independent lanes: CloudFront Project 1 to the existing ALB to Project 1 tasks, and CloudFront Project 2 to a new Project 2 ALB to Project 2 tasks">
+      <defs><marker id="s4-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker><marker id="s4-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m4" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="bx" x="4" y="22" width="72" height="40" rx="6"/><text class="b" x="12" y="46">CF · P1</text>
+      <rect class="bx" x="112" y="14" width="116" height="56" rx="6"/><text class="b" x="120" y="36">shared-alb</text><text class="s" x="120" y="52">existing</text>
+      <rect class="bx" x="268" y="22" width="68" height="40" rx="6"/><text x="276" y="40">P1</text><text class="s" x="276" y="54">tasks</text>
+      <line class="ln dsh" x1="4" y1="94" x2="336" y2="94"/><text class="s" x="96" y="91">no shared listener, no shared rule</text>
+      <rect class="f4" x="4" y="118" width="72" height="40" rx="6"/><text class="b" x="12" y="142">CF · P2</text>
+      <rect class="f4" x="112" y="110" width="116" height="56" rx="6"/><text class="b" x="120" y="132">Project 2 ALB</text><text class="cr" x="120" y="148">+18.40 USD/month</text>
+      <rect class="f4" x="268" y="118" width="68" height="40" rx="6"/><text x="276" y="136">P2</text><text class="s" x="276" y="150">tasks</text>
+      <path class="ln" marker-end="url(#s4-m)" d="M76 42 H112"/><path class="ln" marker-end="url(#s4-m)" d="M228 42 H268"/>
+      <path class="l4" marker-end="url(#s4-a)" d="M76 138 H112"/><path class="l4" marker-end="url(#s4-a)" d="M228 138 H268"/>
+      <text class="gd" x="4" y="188">✓ an ALB incident hits one console only</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>Strongest isolation; mirrors a per-project production layout</li>
+      <li><span class="n">✗</span>18.40 USD per month fixed, plus its own load-balancer settings to manage</li>
+    </ul>
+    <div class="ev"><a href="#E11">E11</a><a href="#E14">E14</a></div>
+  </figure>
+
+  </div>
+</section>
+
+<section>
+  <h2>Other solutions (not prioritised)</h2>
+  <div class="cards">
+
+  <figure class="card k5">
+    <h3><span class="id">S5</span>API Gateway, no ALB</h3>
+    <p class="one">CloudFront calls an HTTP API; a VPC link reaches the tasks.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="CloudFront Project 2 calls a public API Gateway HTTP API, which crosses into the private VPC through a VPC link to the Project 2 tasks found through Cloud Map; the public endpoint can be called directly, bypassing CloudFront">
+      <defs><marker id="s5-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker><marker id="s5-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m5" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="bx" x="4" y="62" width="66" height="44" rx="6"/><text class="b" x="12" y="82">CF · P2</text><text class="s" x="12" y="97">+ WAF</text>
+      <rect class="f5" x="94" y="52" width="106" height="64" rx="6"/><text class="b" x="102" y="72">API Gateway</text><text class="s" x="102" y="88">HTTP API</text><text class="wn" x="102" y="104">public endpoint</text>
+      <rect class="cont" x="216" y="4" width="120" height="136" rx="8"/><text class="s" x="224" y="19">private VPC</text>
+      <rect class="f5" x="226" y="28" width="100" height="40" rx="6"/><text class="b" x="234" y="45">VPC link</text><text class="s" x="234" y="60">ENIs in subnet</text>
+      <rect class="bx" x="226" y="84" width="100" height="46" rx="6"/><text class="b" x="234" y="102">Project 2 tasks</text><text class="s" x="234" y="118">via Cloud Map</text>
+      <path class="ln" marker-end="url(#s5-m)" d="M70 84 H94"/><path class="l5" marker-end="url(#s5-a)" d="M200 76 L226 52"/><path class="l5" marker-end="url(#s5-a)" d="M276 68 V84"/>
+      <path class="lcr" d="M140 116 V152"/>
+      <text class="cr" x="4" y="168">✗ direct calls skip CloudFront WAF</text>
+      <text class="wn" x="4" y="184">unless a Lambda authorizer checks a header</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>No hourly fee: about 1.85 USD/month at 1 million requests</li>
+      <li><span class="n">✗</span>30 s integration timeout, 10 MB payload; idle VPC link goes inactive after 60 days</li>
+      <li><span class="q">?</span>8 MB .xlsx import inside 30 s: not measured</li>
+    </ul>
+    <div class="ev"><a href="#E5">E5</a><a href="#E6">E6</a><a href="#E7">E7</a><a href="#E8">E8</a><a href="#E9">E9</a><a href="#E10">E10</a><a href="#E15">E15</a></div>
+  </figure>
+
+  <figure class="card k6">
+    <h3><span class="id">S6</span>ECS Express Mode</h3>
+    <p class="one">ECS builds and owns a managed ALB, host rules and certificate.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="Express Mode creates a new managed ALB for the Project 2 service; the Project 1 ALB stays separate; Express services in one VPC can share their managed ALB">
+      <defs><marker id="s6-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker><marker id="s6-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m6" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="f6" x="4" y="50" width="86" height="52" rx="6"/><text class="b" x="12" y="70">Express</text><text class="s" x="12" y="86">P2 service</text>
+      <rect class="f6" x="124" y="12" width="140" height="64" rx="6"/><text class="b" x="132" y="32">Managed ALB (new)</text><text class="s" x="132" y="48">HTTPS 443 · host rule</text><text class="cr" x="132" y="66">+18.40 USD/month</text>
+      <rect class="bx" x="124" y="108" width="140" height="48" rx="6"/><text class="b" x="132" y="128">shared-alb</text><text class="s" x="132" y="144">Project 1, separate</text>
+      <rect class="f6" x="288" y="22" width="48" height="44" rx="6"/><text x="294" y="42">P2</text><text class="s" x="294" y="56">tasks</text>
+      <path class="l6" marker-end="url(#s6-a)" d="M90 66 L124 48"/><text class="s" x="96" y="40">creates</text>
+      <path class="l6" marker-end="url(#s6-a)" d="M264 44 H288"/>
+      <text class="wn" x="4" y="180">ALB settings fixed after creation</text>
+      <text class="s" x="4" y="194">up to 25 Express services per VPC share one ALB</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>Least to design: certificate and scaling come with it</li>
+      <li><span class="n">✗</span>Still a second ALB, same cost as S4</li>
+      <li><span class="n">✗</span>Cannot adopt the existing ALB; load-balancer settings are fixed afterwards</li>
+    </ul>
+    <div class="ev"><a href="#E12">E12</a><a href="#E11">E11</a></div>
+  </figure>
+
+  <figure class="card kx">
+    <h3><span class="id">Out</span>Ruled out</h3>
+    <p class="one">Three ideas that sound reasonable but contradict the documentation.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="Three rejected ideas: CloudFront calling a Fargate task directly, reusing the existing MQTT NLB, and a new NLB instead of an ALB">
+      <circle cx="14" cy="26" r="9" class="fbad"/><text class="cr" x="10" y="30">✗</text>
+      <text class="b" x="32" y="24">CloudFront straight to a Fargate task</text><text class="s" x="32" y="41">A VPC origin accepts only ALB, NLB or EC2</text>
+      <circle cx="14" cy="88" r="9" class="fbad"/><text class="cr" x="10" y="92">✗</text>
+      <text class="b" x="32" y="86">Reuse the existing MQTT NLB</text><text class="s" x="32" y="103">It has a TLS listener; a VPC origin rejects it</text>
+      <circle cx="14" cy="150" r="9" class="fbad"/><text class="cr" x="10" y="154">✗</text>
+      <text class="b" x="32" y="148">A new NLB instead of an ALB</text><text class="s" x="32" y="165">0.0252 USD/hour, equal to an ALB: no saving</text>
+    </svg>
+    <div class="ev"><a href="#E1">E1</a><a href="#E13">E13</a><a href="#E11">E11</a></div>
+  </figure>
+
+  </div>
+</section>
+
+<section>
+  <h2>If one shared ALB is chosen (S1 or S2): who owns it in Terraform</h2>
+  <div class="cards">
+
+  <figure class="card k1">
+    <h3><span class="id">A</span>ALB stays in the Project 1 state <span class="tag">starting point</span></h3>
+    <p class="one">Project 2 reads the ALB and adds its own listener and rules.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="The Project 2 state reads the ALB from the Project 1 state and adds a listener and a security group rule to it">
+      <defs><marker id="a-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="m1" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="bx" x="4" y="30" width="118" height="84" rx="6"/><text class="b" x="12" y="50">Project 1 state</text><text class="s" x="12" y="68">owns:</text><text class="s" x="12" y="83">ALB · VPC · cluster</text><text class="s" x="12" y="98">ALB security group</text>
+      <rect class="f1" x="218" y="30" width="118" height="84" rx="6"/><text class="b" x="226" y="50">Project 2 state</text><text class="s" x="226" y="68">owns:</text><text class="s" x="226" y="83">listener · target group</text><text class="s" x="226" y="98">CloudFront · ECS</text>
+      <path class="l1" marker-end="url(#a-m)" d="M218 62 H122"/><text class="s" x="140" y="56">reads</text>
+      <path class="l1 dsh" marker-end="url(#a-m)" d="M218 92 H122"/><text class="s" x="132" y="108">adds a rule</text>
+      <text class="s" x="4" y="150">Project 2 adds objects to an ALB it does not own</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>Nothing moves; no change to today's resources</li>
+      <li><span class="n">✗</span>Project 1 changes to the ALB can break Project 2 routing</li>
+    </ul>
+  </figure>
+
+  <figure class="card k3">
+    <h3><span class="id">B</span>ALB moves to a platform state <span class="tag">optional, later</span></h3>
+    <p class="one">One neutral state owns the shared pieces; both projects read from it.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="A platform state owns the ALB, VPC and cluster; the Project 1 state and the Project 2 state both read from it">
+      <defs><marker id="b-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker></defs>
+      <rect class="f3" x="95" y="6" width="150" height="62" rx="6"/><text class="b" x="103" y="26">Platform state</text><text class="s" x="103" y="44">ALB · VPC · cluster</text><text class="s" x="103" y="58">ALB security group</text>
+      <rect class="bx" x="4" y="104" width="118" height="46" rx="6"/><text class="b" x="12" y="124">Project 1 state</text><text class="s" x="12" y="140">its own pieces</text>
+      <rect class="f3" x="218" y="104" width="118" height="46" rx="6"/><text class="b" x="226" y="124">Project 2 state</text><text class="s" x="226" y="140">its own pieces</text>
+      <path class="ln" marker-end="url(#b-m)" d="M63 104 L120 68"/><path class="ln" marker-end="url(#b-m)" d="M277 104 L220 68"/>
+      <text class="s" x="4" y="176">One-time move: the state record changes,</text><text class="s" x="4" y="190">the AWS resources are not touched</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>Clear owner; a third project joins without touching either state</li>
+      <li><span class="n">✗</span>A new state to own, and a one-time move of today's ALB</li>
+    </ul>
+  </figure>
+
+  </div>
+</section>
+
+<section>
+  <h2>Effect of each option on the live Project 1 stack</h2>
+  <div class="tablewrap"><table class="mx">
+    <thead><tr><th></th><th class="t1">S1 host rule</th><th class="t2">S2 listener each</th><th class="t4">S4 own ALB</th><th class="t5">S5 API GW</th><th class="t6">S6 Express</th></tr></thead>
+    <tbody>
+      <tr><td>Listener :80 on today's ALB</td><td><span class="pill w">rule 1 added</span></td><td><span class="pill g">untouched</span></td><td><span class="pill g">untouched</span></td><td><span class="pill g">untouched</span></td><td><span class="pill g">untouched</span></td></tr>
+      <tr><td>New listener on today's ALB</td><td><span class="pill g">no</span></td><td><span class="pill w">:8081 added</span></td><td><span class="pill g">no</span></td><td><span class="pill g">no</span></td><td><span class="pill g">no</span></td></tr>
+      <tr><td>ALB security group</td><td><span class="pill w">same port, to confirm</span></td><td><span class="pill w">8081 from CloudFront origin SG</span></td><td><span class="pill g">untouched</span></td><td><span class="pill g">untouched</span></td><td><span class="pill g">untouched</span></td></tr>
+      <tr><td>New component created</td><td><span class="pill g">none</span></td><td><span class="pill g">none</span></td><td><span class="pill r">ALB</span></td><td><span class="pill w">API, VPC link, Cloud Map, Lambda</span></td><td><span class="pill r">managed ALB</span></td></tr>
+      <tr><td>New public endpoint</td><td><span class="pill g">no</span></td><td><span class="pill g">no</span></td><td><span class="pill g">no</span></td><td><span class="pill r">yes</span></td><td><span class="pill g">no</span></td></tr>
+      <tr><td>Risk to Project 1 from a Project 2 change</td><td><span class="pill r">rule on its ALB</span></td><td><span class="pill w">listener on its ALB</span></td><td><span class="pill g">none</span></td><td><span class="pill g">none</span></td><td><span class="pill g">none</span></td></tr>
+      <tr><td>Project 1 when the ALB fails</td><td><span class="pill r">down</span></td><td><span class="pill r">down</span></td><td><span class="pill g">up</span></td><td><span class="pill g">up</span></td><td><span class="pill g">up</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap" style="margin-top:12px"><table style="min-width:520px">
+    <thead><tr><th>State option (S1 or S2 only)</th><th>Project 1 state</th><th>Project 2 state</th><th>Check before it is applied</th></tr></thead>
+    <tbody>
+      <tr><td><b>A</b> ALB stays</td><td><span class="pill g">no change</span></td><td><span class="pill w">adds listener and rules</span></td><td>Plan shows only Project 2 additions</td></tr>
+      <tr><td><b>B</b> ALB moves</td><td><span class="pill w">ALB leaves the state</span></td><td><span class="pill g">reads platform</span></td><td>Both plans show 0 to destroy</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>What a wrong or missing routing config does</h2>
+  <figure class="panel">
+    <div class="scroll"><svg class="wide" viewBox="0 0 760 214" role="img" aria-label="Failure behaviour: with S1 an unmatched Project 2 request falls through to Project 1; with S2 or S4 a missing target gives a clear 5xx from the Project 2 path; with S5 an idle VPC link or a slow call gives a gateway error">
+      <defs><marker id="f-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="mk" d="M0 0L10 5L0 10z"/></marker></defs>
+      <text class="b" x="0" y="42" style="fill:var(--k1)">S1</text><text class="s" x="0" y="57">host rule</text>
+      <rect class="bx" x="64" y="22" width="100" height="44" rx="6"/><text x="72" y="42">Project 2 request</text><text class="s" x="72" y="57">to /api</text>
+      <rect class="bx" x="196" y="22" width="150" height="44" rx="6"/><text x="204" y="42">Shared ALB</text><text class="s" x="204" y="57">no rule matches</text>
+      <rect class="bx" x="378" y="22" width="150" height="44" rx="6"/><text x="386" y="42">Default action</text><text class="s" x="386" y="57">forwards to Project 1</text>
+      <rect class="fbad" x="560" y="22" width="200" height="44" rx="6"/><text class="cr" x="570" y="42">Project 1 answers a Project 2 call</text><text class="s" x="570" y="57">misleading, hard to diagnose</text>
+      <text class="b" x="0" y="112" style="fill:var(--k2)">S2 S4</text><text class="s" x="0" y="127">own path</text>
+      <rect class="bx" x="64" y="92" width="100" height="44" rx="6"/><text x="72" y="112">Project 2 request</text><text class="s" x="72" y="127">to /api</text>
+      <rect class="bx" x="196" y="92" width="150" height="44" rx="6"/><text x="204" y="112">Project 2 listener or ALB</text><text class="s" x="204" y="127">default is Project 2</text>
+      <rect class="bx" x="378" y="92" width="150" height="44" rx="6"/><text x="386" y="112">No healthy target</text><text class="s" x="386" y="127">nothing to forward to</text>
+      <rect class="fgood" x="560" y="92" width="200" height="44" rx="6"/><text class="gd" x="570" y="112">Clear 5xx from the Project 2 path</text><text class="s" x="570" y="127">Project 1 never sees it</text>
+      <text class="b" x="0" y="182" style="fill:var(--k5)">S5</text><text class="s" x="0" y="197">API Gateway</text>
+      <rect class="bx" x="64" y="162" width="100" height="44" rx="6"/><text x="72" y="182">Project 2 request</text><text class="s" x="72" y="197">to /api</text>
+      <rect class="bx" x="196" y="162" width="150" height="44" rx="6"/><text x="204" y="182">HTTP API</text><text class="s" x="204" y="197">public endpoint</text>
+      <rect class="bx" x="378" y="162" width="150" height="44" rx="6"/><text x="386" y="182">VPC link idle or slow</text><text class="s" x="386" y="197">over 60 days / over 30 s</text>
+      <rect class="fmid" x="560" y="162" width="200" height="44" rx="6"/><text class="wn" x="570" y="182">5xx or 504 from API Gateway</text><text class="s" x="570" y="197">clear, but a new failure mode</text>
+      <path class="ln" marker-end="url(#f-m)" d="M164 44 H196"/><path class="ln" marker-end="url(#f-m)" d="M346 44 H378"/><path class="ln" marker-end="url(#f-m)" d="M528 44 H560"/>
+      <path class="ln" marker-end="url(#f-m)" d="M164 114 H196"/><path class="ln" marker-end="url(#f-m)" d="M346 114 H378"/><path class="ln" marker-end="url(#f-m)" d="M528 114 H560"/>
+      <path class="ln" marker-end="url(#f-m)" d="M164 184 H196"/><path class="ln" marker-end="url(#f-m)" d="M346 184 H378"/><path class="ln" marker-end="url(#f-m)" d="M528 184 H560"/>
+    </svg></div>
+  </figure>
+</section>
+
+<section>
+  <h2>Extra fixed cost per month</h2>
+  <figure class="panel">
+    <div class="scroll"><svg class="wide" viewBox="0 0 760 224" role="img" aria-label="Extra fixed cost per month: S1 and S2 are 0; S5 is about 1.85 USD at one million requests; S4, S6 and a new NLB are each 18.40 USD">
+      <line class="ln" x1="230" y1="8" x2="230" y2="216"/>
+      <text class="b" x="0" y="31" style="fill:var(--k1)">S1 host rule</text><rect class="f1" x="230" y="18" width="4" height="20"/><text x="244" y="33">0</text>
+      <text class="b" x="0" y="65" style="fill:var(--k2)">S2 listener per project</text><rect class="f2" x="230" y="52" width="4" height="20"/><text x="244" y="67">0</text>
+      <text class="b" x="0" y="99" style="fill:var(--k4)">S4 separate ALB</text><rect class="f4" x="230" y="86" width="460" height="20"/><text x="698" y="101">18.40</text>
+      <text class="b" x="0" y="133" style="fill:var(--k5)">S5 API Gateway</text><rect class="f5" x="230" y="120" width="34" height="20"/><text x="274" y="135">≈ 1.85 at 1 million requests, 1 task</text>
+      <text class="b" x="0" y="167" style="fill:var(--k6)">S6 Express Mode</text><rect class="f6" x="230" y="154" width="460" height="20"/><text x="698" y="169">18.40</text>
+      <text class="b" x="0" y="201" style="fill:var(--crit)">New NLB (ruled out)</text><rect class="bx" x="230" y="188" width="460" height="20"/><text x="698" y="203">18.40</text>
+    </svg></div>
+    <figcaption class="small muted" style="margin-top:8px">ALB or NLB: 0.0252 USD/hour × 730 hours = 18.40 [E11]. S5: 1.25 USD per million requests, 0.10 USD per task per month on Cloud Map, 0.50 USD per month for the Route 53 hosted zone a Cloud Map DNS namespace adds [E10]; excludes the Lambda authorizer, data transfer and Cloud Map call volume, so it is a lower bound. Break-even against S4 is about (18.40 - 0.60) / 1.25 ≈ 14.2 million requests per month under those assumptions.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Limits on one shared ALB, and the cost at the limit</h2>
+  <div class="cards">
+
+  <figure class="card k1">
+    <h3><span class="id">S1</span>Rules per ALB</h3>
+    <p class="one">No fee per rule. Rules cost money only through the "rule evaluations" LCU dimension.</p>
+    <svg viewBox="0 0 340 150" role="img" aria-label="Rule count scale from 0 to 100: the first 10 rules are free, rules 11 to 100 add rule evaluations that are billed only when that dimension is the highest; 100 is the default quota and can be raised">
+      <rect class="fgood" x="4" y="34" width="30" height="26"/><rect class="fmid" x="34" y="34" width="270" height="26"/>
+      <line x1="304" y1="24" x2="304" y2="72" style="stroke:var(--crit);stroke-width:2"/>
+      <text class="gd" x="4" y="26">0-10</text><text class="s" x="4" y="86">free</text>
+      <text class="wn" x="120" y="52">11-100: billed via LCU</text>
+      <text class="cr" x="262" y="18">quota 100</text><text class="s" x="268" y="86">adjustable</text>
+      <text class="s" x="4" y="110">S1 needs 1 rule per project (1 host rule holds up to 5 hostnames)</text>
+      <text class="s" x="4" y="128">Project 2 + Project 1 today: 1 rule, so the dimension is ignored</text>
+      <text class="b" x="4" y="146">Worst case below: every request walks all 100 rules</text>
+    </svg>
+    <table style="margin-top:8px">
+      <thead><tr><th>Avg requests / s</th><th>Rule-eval LCU</th><th>USD / month</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>0.09</td><td><span class="pill g">0.53</span></td></tr>
+        <tr><td>10</td><td>0.9</td><td><span class="pill w">5.26</span></td></tr>
+        <tr><td>50</td><td>4.5</td><td><span class="pill r">26.28</span></td></tr>
+      </tbody>
+    </table>
+    <p class="small muted" style="margin:6px 0 0">LCU = requests/s × (100 - 10) / 1000; USD = LCU × 0.008 × 730. Charged only if this is the highest of the four LCU dimensions; otherwise 0 extra.</p>
+    <div class="ev"><a href="#E3">E3</a><a href="#E17">E17</a><a href="#E18">E18</a></div>
+  </figure>
+
+  <figure class="card k2">
+    <h3><span class="id">S2</span>Listeners per ALB</h3>
+    <p class="one">No fee per listener. The real limit today is the ALB security group, not the listener quota.</p>
+    <svg viewBox="0 0 340 196" role="img" aria-label="Listener scale from 0 to 50 is free with quota 50 adjustable; below, the security group budget of 60 rules: one CloudFront prefix list rule weighs 55, a second one would reach 110 and fail, while a rule referencing the CloudFront VPC origin security group weighs 1">
+      <rect class="fgood" x="4" y="24" width="300" height="22"/>
+      <line x1="304" y1="14" x2="304" y2="56" style="stroke:var(--crit);stroke-width:2"/>
+      <text class="gd" x="12" y="40">listeners 1-50: 0 USD each</text><text class="cr" x="262" y="12">quota 50</text><text class="s" x="268" y="68">adjustable</text>
+      <text class="b" x="4" y="92">Security group budget: 60 rules</text>
+      <rect class="gr" x="4" y="100" width="300" height="22"/><rect class="fmid" x="4" y="100" width="275" height="22"/><text class="s" x="10" y="115">:80 from CloudFront prefix list = 55</text>
+      <line x1="304" y1="96" x2="304" y2="178" style="stroke:var(--crit);stroke-width:2"/><text class="cr" x="310" y="115">60</text>
+      <text class="cr" x="4" y="144">✗ :8081 from prefix list too: 55 + 55 = 110</text>
+      <text class="gd" x="4" y="164">✓ :8081 from CloudFront VPC origin SG: 55 + 1</text>
+      <text class="s" x="4" y="184">each further project port via the SG adds 1</text>
+    </svg>
+    <ul class="facts">
+      <li><span class="y">✓</span>Up to 50 listeners: 0 USD extra fixed; traffic LCU is the same as on separate listeners</li>
+      <li><span class="n">✗</span>Above 50: raise the quota (free) or add an ALB (+18.40 USD/month)</li>
+      <li><span class="n">✗</span>Target groups per ALB: 100, not adjustable</li>
+    </ul>
+    <div class="ev"><a href="#E3">E3</a><a href="#E17">E17</a><a href="#E19">E19</a><a href="#E20">E20</a></div>
+  </figure>
+
+  </div>
+</section>
+
+<section>
+  <h2>What "the prefix list counts as 55 rules" means</h2>
+  <div class="cards">
+  <figure class="card k2" style="grid-column:1/-1">
+    <h3>A security group has 60 rule slots. One CloudFront prefix-list rule takes 55 of them.</h3>
+    <p class="one">A normal rule allows one source (one IP range or one security group) and takes 1 slot. A prefix list is a named list of many IP ranges. AWS counts a rule that points at it as if you had written one rule per range the list can hold: today CloudFront has 46 ranges, and AWS reserves 55 so the list can grow without breaking anyone's security group.</p>
+    <div class="scroll"><svg class="wide" viewBox="0 0 780 214" role="img" aria-label="Three rows of 60 slots. Today: 55 slots used by the port 80 CloudFront prefix-list rule, 5 free. Adding port 8081 from the prefix list needs 55 more but only 5 are free, so AWS rejects it. Adding port 8081 from the CloudFront VPC origin security group needs 1 slot and fits.">
+      <text class="b" x="0" y="20">Today</text><text class="s" x="0" y="44">ALB security group</text>
+      <rect class="fmid" x="170" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="180" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="190" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="200" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="210" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="220" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="230" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="240" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="250" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="260" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="270" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="280" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="290" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="300" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="310" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="320" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="330" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="340" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="350" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="360" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="370" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="380" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="390" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="400" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="410" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="420" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="430" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="440" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="450" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="460" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="470" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="480" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="490" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="500" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="510" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="520" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="530" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="540" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="550" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="560" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="570" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="580" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="590" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="600" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="610" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="620" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="630" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="640" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="650" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="660" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="670" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="680" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="690" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="700" y="30" width="8" height="18" rx="1.5"/><rect class="fmid" x="710" y="30" width="8" height="18" rx="1.5"/><rect class="gr" x="720" y="30" width="8" height="18" rx="1.5"/><rect class="gr" x="730" y="30" width="8" height="18" rx="1.5"/><rect class="gr" x="740" y="30" width="8" height="18" rx="1.5"/><rect class="gr" x="750" y="30" width="8" height="18" rx="1.5"/><rect class="gr" x="760" y="30" width="8" height="18" rx="1.5"/>
+      <text class="wn" x="170" y="66">55 = :80 from CloudFront prefix list (Project 1)</text><text class="gd" x="725" y="66">5 free</text>
+      <text class="b" x="0" y="88" style="fill:var(--crit)">✗ 8081 via prefix list</text><text class="s" x="0" y="112">needs 55 more</text>
+      <rect class="fmid" x="170" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="180" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="190" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="200" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="210" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="220" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="230" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="240" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="250" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="260" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="270" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="280" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="290" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="300" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="310" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="320" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="330" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="340" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="350" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="360" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="370" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="380" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="390" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="400" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="410" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="420" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="430" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="440" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="450" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="460" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="470" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="480" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="490" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="500" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="510" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="520" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="530" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="540" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="550" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="560" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="570" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="580" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="590" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="600" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="610" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="620" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="630" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="640" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="650" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="660" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="670" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="680" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="690" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="700" y="98" width="8" height="18" rx="1.5"/><rect class="fmid" x="710" y="98" width="8" height="18" rx="1.5"/><rect class="fbad" x="720" y="98" width="8" height="18" rx="1.5"/><rect class="fbad" x="730" y="98" width="8" height="18" rx="1.5"/><rect class="fbad" x="740" y="98" width="8" height="18" rx="1.5"/><rect class="fbad" x="750" y="98" width="8" height="18" rx="1.5"/><rect class="fbad" x="760" y="98" width="8" height="18" rx="1.5"/>
+      <text class="cr" x="170" y="134">only 5 slots free, 50 more do not fit: 55 + 55 = 110 &gt; 60, AWS rejects the rule</text>
+      <text class="b" x="0" y="156" style="fill:var(--good)">✓ 8081 via CloudFront SG</text><text class="s" x="0" y="180">needs 1</text>
+      <rect class="fmid" x="170" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="180" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="190" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="200" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="210" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="220" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="230" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="240" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="250" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="260" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="270" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="280" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="290" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="300" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="310" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="320" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="330" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="340" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="350" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="360" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="370" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="380" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="390" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="400" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="410" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="420" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="430" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="440" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="450" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="460" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="470" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="480" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="490" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="500" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="510" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="520" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="530" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="540" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="550" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="560" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="570" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="580" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="590" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="600" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="610" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="620" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="630" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="640" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="650" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="660" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="670" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="680" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="690" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="700" y="166" width="8" height="18" rx="1.5"/><rect class="fmid" x="710" y="166" width="8" height="18" rx="1.5"/><rect class="fgood" x="720" y="166" width="8" height="18" rx="1.5"/><rect class="gr" x="730" y="166" width="8" height="18" rx="1.5"/><rect class="gr" x="740" y="166" width="8" height="18" rx="1.5"/><rect class="gr" x="750" y="166" width="8" height="18" rx="1.5"/><rect class="gr" x="760" y="166" width="8" height="18" rx="1.5"/>
+      <text class="gd" x="170" y="202">1 slot = :8081 from CloudFront-VPCOrigins-Service-SG (a security group counts as 1): 56 of 60</text>
+    </svg></div>
+    <ul class="facts">
+      <li><span class="y">✓</span>Both rules let only CloudFront in; the security-group source is narrower (only your own distributions)</li>
+      <li><span class="n">✗</span>The limit is per security group: every extra project port added the prefix-list way would hit it again</li>
+      <li><span class="q">?</span>Whether the Project 2 VPC origin reuses the same CloudFront security group: not tested</li>
+    </ul>
+    <div class="ev"><a href="#E19">E19</a><a href="#E20">E20</a></div>
+  </figure>
+  </div>
+</section>
+
+<section>
+  <h2>Side by side</h2>
+  <div class="tablewrap"><table class="mx">
+    <thead><tr><th></th><th class="t1">S1 host rule</th><th class="t2">S2 listener each</th><th class="t4">S4 own ALB</th><th class="t5">S5 API GW</th><th class="t6">S6 Express</th></tr></thead>
+    <tbody>
+      <tr><td>Extra cost / month</td><td><span class="pill g">0</span></td><td><span class="pill g">0</span></td><td><span class="pill r">18.40</span></td><td><span class="pill g">≈ 1.85</span></td><td><span class="pill r">18.40</span></td></tr>
+      <tr><td>ALB incident hits</td><td><span class="pill r">both consoles</span></td><td><span class="pill r">both consoles</span></td><td><span class="pill g">Project 2 only</span></td><td><span class="pill g">Project 2 only</span></td><td><span class="pill g">Project 2 only</span></td></tr>
+      <tr><td>Bad config behaviour</td><td><span class="pill r">falls to P1</span></td><td><span class="pill g">stays in Project 2</span></td><td><span class="pill g">stays in Project 2</span></td><td><span class="pill w">gateway 5xx</span></td><td><span class="pill w">host rule</span></td></tr>
+      <tr><td>Needs Host header</td><td><span class="pill w">yes</span></td><td><span class="pill g">no</span></td><td><span class="pill g">no</span></td><td><span class="pill g">no</span></td><td><span class="pill w">yes</span></td></tr>
+      <tr><td>Who owns the entry tier</td><td><span class="pill r">P1 owns, P2 rents</span></td><td><span class="pill w">P1 owns ALB</span></td><td><span class="pill g">Project 2</span></td><td><span class="pill g">Project 2</span></td><td><span class="pill g">ECS</span></td></tr>
+      <tr><td>Exposure</td><td><span class="pill g">private</span></td><td><span class="pill g">private</span></td><td><span class="pill g">private</span></td><td><span class="pill r">public endpoint</span></td><td><span class="pill g">private</span></td></tr>
+      <tr><td>Hard limits</td><td><span class="pill g">none seen</span></td><td><span class="pill g">none seen</span></td><td><span class="pill g">none seen</span></td><td><span class="pill r">30 s, 10 MB</span></td><td><span class="pill w">LB fixed</span></td></tr>
+      <tr><td>Open uncertainty</td><td><span class="pill g">none</span></td><td><span class="pill w">2 origins / 1 ALB</span></td><td><span class="pill g">none</span></td><td><span class="pill w">import under 30 s</span></td><td><span class="pill g">none</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Decision</h2>
+  <div class="reco">
+    <div><b>S2 chosen by the Solution Architect on 2026-10-14.</b> The ALB stays in the Project 1 state for now (option A); moving it to a platform state (option B) stays optional.</div>
+    <div><b>Why S2 was recommended:</b> Same 0 USD cost, a failure stays inside the Project 2 path, and there is no Host header dependency. Moving the ALB to a platform state later (option B above) gives it a neutral owner as more projects join.</div>
+    <div class="path"><span class="st">Precondition: two origins can target one ALB (E2), tested by the first Project 2 apply</span><span class="ar">→</span><span class="st">If not: fall back to S4</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Questions for the architect</h2>
+  <ol class="qs">
+    <li><div><b>Is a shared entry tier acceptable in UAT?</b><span>Or should isolation (S4) win for 18.40 USD per month?</span></div></li>
+    <li><div><b>Should UAT mirror the intended production topology?</b><span>One ALB per project, or shared. UAT should test the shape production will use.</span></div></li>
+    <li><div><b>Will Project 2 and Project 1 have different owners or release schedules?</b><span>Different owners favour a platform state (B) or S4.</span></div></li>
+    <li><div><b>Does the shared platform (ALB, VPC, cluster) need an explicit owner?</b><span>Option B assumes yes.</span></div></li>
+  </ol>
+</section>
+
+<section>
+  <h2 id="evidence">Evidence</h2>
+  <div class="tablewrap"><table style="min-width:720px">
+    <thead><tr><th>Code</th><th>What is confirmed</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr id="E1"><td>E1</td><td>A CloudFront VPC origin accepts only ALB, NLB and EC2. An NLB with a TLS listener is excluded.</td><td><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html" target="_blank" rel="noopener">CloudFront - VPC origins</a></td></tr>
+      <tr id="E2"><td>E2</td><td>A VPC origin configuration has an HTTP port (default 80) and an HTTPS port. No passage covers several VPC origins on one ALB.</td><td><a href="https://docs.aws.amazon.com/cloudfront/latest/APIReference/API_VpcOriginEndpointConfig.html" target="_blank" rel="noopener">API VpcOriginEndpointConfig</a></td></tr>
+      <tr id="E3"><td>E3</td><td>A listener accepts ports 1-65535 and every listener has its own default action. Quotas: 50 listeners and 100 rules per ALB, 50 ALBs per Region.</td><td><a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-listeners.html" target="_blank" rel="noopener">ALB listeners</a>, <a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-limits.html" target="_blank" rel="noopener">ALB quotas</a></td></tr>
+      <tr id="E4"><td>E4</td><td>Host-based rules need the Host header, which CloudFront does not forward by default. The existing Project 1 distribution uses the AllViewer policy, which forwards it. Recorded in the Project 2 decision log, not reopened today.</td><td>AWS docs and CLI read 2026-10-12 and 2026-10-13</td></tr>
+      <tr id="E5"><td>E5</td><td>An HTTP API private integration accepts an ALB, an NLB or Cloud Map, all in one account. Cloud Map with ECS needs SRV records or Service Connect.</td><td><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-private.html" target="_blank" rel="noopener">HTTP API - private integrations</a></td></tr>
+      <tr id="E6"><td>E6</td><td>A VPC link v2 creates ENIs in your subnets. After 60 days without traffic it goes INACTIVE, the ENIs are deleted and requests fail until it is recreated.</td><td><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-vpc-links-v2.html" target="_blank" rel="noopener">VPC links v2</a></td></tr>
+      <tr id="E7"><td>E7</td><td>HTTP API: integration timeout at most 30 seconds (not adjustable), payload 10 MB, 10 VPC links per Region.</td><td><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-quotas.html" target="_blank" rel="noopener">HTTP API quotas</a></td></tr>
+      <tr id="E8"><td>E8</td><td>HTTP API supports neither AWS WAF nor resource policies; it supports Lambda authorizers. The default endpoint can be disabled, but a custom domain stays public.</td><td><a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-vs-rest.html" target="_blank" rel="noopener">REST vs HTTP API</a>, <a href="https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-disable-default-endpoint.html" target="_blank" rel="noopener">disable default endpoint</a></td></tr>
+      <tr id="E9"><td>E9</td><td>AWS describes "CloudFront adds a secret header" for ALB origins and notes it is safe only while the header stays secret. For an HTTP API the header would be checked by a Lambda authorizer (inference from E8).</td><td><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/restrict-access-to-load-balancer.html" target="_blank" rel="noopener">CloudFront - restrict ALB access</a></td></tr>
+      <tr id="E10"><td>E10</td><td>ap-southeast-1 prices: HTTP API 0.00000125 USD per request for the first 300 million (Price List published 2026-10-13); Cloud Map 0.10 USD per resource-month and 1.00 USD per million API calls (published 2026-09-11); Route 53 hosted zone 0.50 USD per month. The API Gateway pricing page does not mention a VPC link fee.</td><td>Price List <code>AmazonApiGateway</code>, <code>AWSCloudMap</code>, <code>AmazonRoute53</code>; <a href="https://aws.amazon.com/api-gateway/pricing/" target="_blank" rel="noopener">pricing page</a></td></tr>
+      <tr id="E11"><td>E11</td><td>ALB and NLB are both 0.0252 USD per hour in ap-southeast-1 (published 2026-09-11); 730 hours = 18.40 USD per month.</td><td>Price List <code>AWSELB</code></td></tr>
+      <tr id="E12"><td>E12</td><td>Express Mode creates its own ALB with HTTPS 443, host-header rules and a certificate; up to 25 Express services in a VPC share one ALB; private subnets give an internal ALB; load-balancer configuration cannot be updated after creation.</td><td><a href="https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-work.html" target="_blank" rel="noopener">Express Mode - resources</a></td></tr>
+      <tr id="E13"><td>E13</td><td>The existing MQTT NLB uses a TLS listener.</td><td>Project 1 infrastructure code</td></tr>
+      <tr id="E14"><td>E14</td><td>Today one internal ALB <code>shared-alb</code> serves Project 1: listener HTTP:80 whose default action forwards to Project 1, no other rule. Read-only check on 2026-10-13.</td><td>AWS CLI, read-only</td></tr>
+      <tr id="E15"><td>E15</td><td>The Project 1 stack attaches an AWS WAF web ACL (scope CloudFront) to its distribution, so a WAF can stay in front of an HTTP API origin but is bypassed by direct calls.</td><td>Project 1 infrastructure code</td></tr>
+      <tr id="E17"><td>E17</td><td>ALB is billed per load-balancer hour plus LCU-hours, charged on the highest of four dimensions (new connections, active connections, processed bytes, rule evaluations). Rule evaluations = request rate × (rules processed - 10); "the first 10 processed rules are free" and with 10 or fewer rules the dimension is ignored. The page names no per-listener or per-rule fee. ap-southeast-1: 0.008 USD per LCU-hour (Price List published 2026-09-11).</td><td><a href="https://aws.amazon.com/elasticloadbalancing/pricing/" target="_blank" rel="noopener">ELB pricing</a>, Price List <code>AWSELB</code></td></tr>
+      <tr id="E18"><td>E18</td><td>Rules per ALB 100, excluding default rules, adjustable; condition values per rule 5. Listeners per ALB 50, adjustable. Target groups per ALB 100, not adjustable. Account values read 2026-10-14: 50 listeners, 100 rules.</td><td><a href="https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-limits.html" target="_blank" rel="noopener">ALB quotas</a>, Service Quotas, read-only</td></tr>
+      <tr id="E19"><td>E19</td><td>The CloudFront managed prefix list has weight 55: in a security group with the default quota of 60 rules it leaves room for only 5 more. Account quota read 2026-10-14: 60. The ALB security group already holds one rule from this prefix list on port 80. The list holds 46 IP ranges today (read 2026-10-14); the weight is a reservation, not the current count.</td><td><a href="https://docs.aws.amazon.com/vpc/latest/userguide/working-with-aws-managed-prefix-lists.html" target="_blank" rel="noopener">AWS-managed prefix list weight</a>, AWS CLI read-only</td></tr>
+      <tr id="E20"><td>E20</td><td>A VPC origin's resource can allow inbound from the CloudFront managed prefix list or from the service-managed security group <code>CloudFront-VPCOrigins-Service-SG</code>, which "restricts the traffic only to your CloudFront distributions". That group exists in the shared VPC (read 2026-10-14).</td><td><a href="https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html" target="_blank" rel="noopener">CloudFront - VPC origins</a>, AWS CLI read-only</td></tr>
+      <tr id="E16"><td>E16</td><td>Project 2 runtime contract: the SPA calls <code>/api</code> on its own origin; the backend uses <code>X-Forwarded-*</code> for its sign-in callback; the file import accepts one .xlsx up to 8 MB. Read from the Project 2 server repository.</td><td>Project 2 source topology notes</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+</body>
+</html>
