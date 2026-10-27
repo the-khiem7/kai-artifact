@@ -13,6 +13,7 @@ Browse all artifacts: https://the-khiem7.github.io/kai-artifact/
 | AWS Lambda Web Functions | Nghiên cứu có kiểm chứng về AWS Lambda Web Functions (ra mắt 12/10/2026): mô hình lập trình, concurrency, billing, networking, giới hạn và khi nào nên dùng. | [aws-lambda-web-functions](https://the-khiem7.github.io/kai-artifact/aws-lambda-web-functions/) |
 | CloudFront Rule Budget | Why a security group rule that points at the CloudFront managed prefix list uses 55 of its 60 rule slots, and how referencing the CloudFront VPC origin security group costs 1 slot instead. | [cloudfront-rule-budget](https://the-khiem7.github.io/kai-artifact/cloudfront-rule-budget/) |
 | E-commerce platform on AWS | Interactive AWS deployment diagram of an e-commerce platform: CloudFront and ALB in front of Fargate services, Aurora, an analytics lake and a Bedrock assistant. | [ecommerce-on-aws](https://the-khiem7.github.io/kai-artifact/ecommerce-on-aws/) |
+| H2DF Presenter Guide | Presenter guide for H2DF: an interactive Vietnamese explainer of the paper, with figures, a simulator and a Q&amp;A glossary. | [h2df-explainer](https://the-khiem7.github.io/kai-artifact/h2df-explainer/) |
 | SignalScout production architecture | Production AWS architecture of SignalScout: Amplify frontend, Bedrock AgentCore supervisor with Crawler and Analysis subagents, Langfuse scoring webhook, and S3 and DynamoDB storage. | [signalscout-prod-architecture](https://the-khiem7.github.io/kai-artifact/signalscout-prod-architecture/) |
 <!-- ARTIFACTS:END -->
 
