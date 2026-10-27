@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Presenter guide for H2DF: an interactive Vietnamese explainer of the paper, with figures, a simulator and a Q&amp;A glossary.">
+<title>H2DF Presenter Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column under a sticky section bar; each section = paper reference eyebrow, short claim, then a figure or interactive that carries the content. */
+:root {
+  --bg: #F3F6F8;
+  --surface: #FFFFFF;
+  --ink: #14212C;
+  --muted: #586877;
+  --line: #D6DEE5;
+  --soft: #E8EEF2;
+  --accent: #0B7A73;
+  --accent-ink: #FFFFFF;
+  --accent-soft: rgba(11, 122, 115, .11);
+  --band: rgba(11, 122, 115, .13);
+  --h2df: #0B7A73;
+  --ga: #C4423A;
+  --pref: #4F5FC4;
+  --gd: #A97410;
+  --simnpo: #8A4BA3;
+  --orig: #7C8995;
+  --below: #9AAAB8;
+  --fpass: #6B7C8C;
+  --display: "Bricolage Grotesque", "Be Vietnam Pro", system-ui, "Segoe UI", sans-serif;
+  --body: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E141A; --surface: #151D25; --ink: #E4EBF1; --muted: #98A7B5; --line: #283440; --soft: #1C2630;
+    --accent: #3CC2B8; --accent-ink: #062322; --accent-soft: rgba(60, 194, 184, .13); --band: rgba(60, 194, 184, .15);
+    --h2df: #3CC2B8; --ga: #EF7169; --pref: #8C98F2; --gd: #DDAF4C; --simnpo: #C38DDC; --orig: #8C99A6; --below: #5D6E7E; --fpass: #7F909F;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E141A; --surface: #151D25; --ink: #E4EBF1; --muted: #98A7B5; --line: #283440; --soft: #1C2630;
+  --accent: #3CC2B8; --accent-ink: #062322; --accent-soft: rgba(60, 194, 184, .13); --band: rgba(60, 194, 184, .15);
+  --h2df: #3CC2B8; --ga: #EF7169; --pref: #8C98F2; --gd: #DDAF4C; --simnpo: #C38DDC; --orig: #8C99A6; --below: #5D6E7E; --fpass: #7F909F;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar-inner { max-width: 1080px; margin: 0 auto; display: flex; align-items: center; gap: 14px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.brand { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -.01em; white-space: nowrap; color: var(--ink); text-decoration: none; }
+.brand span { color: var(--accent); }
+.nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.nav::-webkit-scrollbar { display: none; }
+.nav a { font-size: 13px; color: var(--muted); text-decoration: none; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
+.nav a:hover { color: var(--ink); background: var(--soft); }
+.nav a.on { color: var(--accent-ink); background: var(--accent); }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+section { padding-block: 56px 8px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.eyebrow b { color: var(--accent); font-weight: 500; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -.015em; }
+h2 { font-size: clamp(26px, 3.6vw, 36px); line-height: 1.15; margin-top: 10px; }
+h3 { font-size: 19px; line-height: 1.3; }
+p { margin: 0; }
+.lead { font-size: 17px; color: var(--muted); max-width: 66ch; margin-top: 12px; }
+.stack { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
+
+/* hero */
+.hero { padding-block: 48px 8px; }
+.hero h1 { font-size: clamp(30px, 5.2vw, 54px); line-height: 1.06; margin-top: 14px; max-width: 20ch; }
+.hero .by { margin-top: 14px; color: var(--muted); }
+.thesis { margin-top: 28px; display: grid; grid-template-columns: auto 1fr; gap: 0 18px; align-items: stretch; max-width: 820px; }
+.thesis .bar { width: 6px; border-radius: 3px; background: linear-gradient(to bottom, var(--below) 0 30%, var(--accent) 30% 72%, var(--ga) 72% 100%); }
+.thesis q { font-family: var(--display); font-size: clamp(21px, 2.8vw, 28px); line-height: 1.25; quotes: none; display: block; }
+.thesis .vi { color: var(--muted); margin-top: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+.chip { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: var(--soft); color: var(--ink); border: 1px solid var(--line); white-space: nowrap; }
+.chip.acc { background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 600; }
+
+/* cards */
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.card .k { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.card p, .card li { color: var(--ink); font-size: 15px; }
+.card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.card.tone-ga { border-top: 3px solid var(--ga); }
+.card.tone-acc { border-top: 3px solid var(--accent); }
+.card.tone-below { border-top: 3px solid var(--below); }
+
+.nums { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.num { padding: 14px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.num .v { font-family: var(--display); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--accent); }
+.num .v small { font-size: 16px; color: var(--muted); font-weight: 500; }
+.num .l { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+
+.say { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); }
+.say .t { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); white-space: nowrap; }
+.say q { quotes: none; font-weight: 500; }
+
+.note { font-size: 13.5px; color: var(--muted); }
+.mine { border-left: 3px dashed var(--gd); padding: 4px 0 4px 12px; font-size: 14.5px; }
+.mine b { color: var(--gd); }
+
+/* timeline */
+.timeline { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 0; overflow-x: auto; padding-bottom: 6px; }
+.tl { position: relative; padding: 22px 14px 0 0; }
+.tl::before { content: ""; position: absolute; left: 0; right: 0; top: 7px; height: 2px; background: var(--line); }
+.tl::after { content: ""; position: absolute; left: 0; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--muted); }
+.tl.now::after { background: var(--accent); border-color: var(--accent); }
+.tl .y { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.tl .n { font-weight: 600; margin-top: 2px; }
+.tl .d { font-size: 13.5px; color: var(--muted); }
+.tl.now .n { color: var(--accent); }
+
+/* math */
+math { font-size: 1.12em; }
+.eq { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.eq .m { overflow-x: auto; padding-block: 4px; }
+.eq .tag { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.t-low { color: var(--accent); }
+.t-up { color: var(--ga); }
+.t-reg { color: var(--muted); }
+.zones { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.zones th, .zones td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.zones th { font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.zdot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+
+/* charts */
+.figure { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.figure .cap { font-size: 13.5px; color: var(--muted); }
+.scroll { overflow-x: auto; }
+.scroll svg { display: block; width: 100%; min-width: 520px; height: auto; touch-action: pan-y; }
+svg text { font-family: var(--mono); }
+svg .tick { fill: var(--muted); font-size: 11px; }
+svg .lab { fill: var(--muted); font-size: 12px; }
+svg .grid { stroke: var(--line); stroke-width: 1; }
+svg .axis0 { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+svg .bandr { fill: var(--band); }
+svg .bandl { fill: var(--accent); font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13.5px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+.legend i.box { height: 10px; width: 12px; border-radius: 2px; }
+.controls { display: grid; gap: 10px 18px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.ctl { display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); }
+.ctl output { font-family: var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.readout { font-family: var(--mono); font-size: 13px; padding: 10px 12px; border-radius: 8px; background: var(--soft); font-variant-numeric: tabular-nums; min-height: 42px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: inherit; font-size: 14px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.pri { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+/* tables */
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.data th:first-child, table.data td:first-child { text-align: left; }
+table.data thead th { font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: .05em; color: var(--muted); }
+table.data td.best { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+table.data tr.me td:first-child { color: var(--accent); font-weight: 700; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
+
+/* bars */
+.bars { display: flex; flex-direction: column; gap: 8px; }
+.brow { display: grid; grid-template-columns: 92px 1fr 56px; gap: 10px; align-items: center; font-size: 14px; }
+.brow .nm { font-weight: 500; }
+.brow .tr { height: 18px; background: var(--soft); border-radius: 4px; overflow: hidden; }
+.brow .fl { height: 100%; border-radius: 4px; transition: width .35s ease; }
+.brow .vl { font-family: var(--mono); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+.brow.best .vl { color: var(--accent); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .brow .fl { transition: none; } }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.srow { display: grid; grid-template-columns: 150px 1fr 70px; gap: 12px; align-items: center; font-size: 14px; }
+.stk { display: flex; height: 26px; border-radius: 5px; overflow: hidden; }
+.stk div { display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11.5px; color: #fff; min-width: 0; overflow: hidden; }
+.stk .sb { background: var(--below); color: var(--ink); }
+.stk .si { background: var(--accent); color: var(--accent-ink); }
+.stk .sa { background: var(--ga); }
+.srow .vl { font-family: var(--mono); font-size: 13px; text-align: right; }
+
+/* flow */
+.flow { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+.phase { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.phase .ph { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.phase ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; }
+.router { display: grid; gap: 6px; }
+.route { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: center; font-size: 14px; padding: 6px 10px; border-radius: 8px; background: var(--soft); }
+.route code { font-family: var(--mono); font-size: 13px; }
+
+/* cost strips */
+.cost { display: flex; flex-direction: column; gap: 8px; }
+.crow { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; font-size: 14px; }
+.strip { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.strip i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.strip i.f { background: var(--fpass); }
+.strip i.r { background: transparent; border: 2px solid var(--gd); }
+.strip .x { font-size: 12.5px; color: var(--muted); margin-left: 6px; }
+.strip .cal { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-left: 6px; }
+
+/* talk */
+.talk { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--line); }
+.slide { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.slide .no { font-family: var(--display); font-weight: 700; font-size: 22px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.slide .tt { font-weight: 600; }
+.slide .ln { font-style: italic; color: var(--accent); margin-top: 2px; }
+.slide .sh { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.slide .tm { font-family: var(--mono); font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+.qa { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.qa .card .q { font-weight: 600; }
+.qa .card .a { color: var(--muted); font-size: 14.5px; }
+
+.gloss { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.gl { padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
+.gl b { font-family: var(--mono); font-weight: 500; color: var(--accent); display: block; }
+
+footer { padding-block: 48px 40px; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 560px) {
+  .brow { grid-template-columns: 74px 1fr 50px; }
+  .srow { grid-template-columns: 1fr 60px; }
+  .srow .nm { grid-column: 1 / -1; }
+  .crow { grid-template-columns: 1fr; gap: 4px; }
+  .slide { grid-template-columns: 34px 1fr; }
+  .slide .tm { grid-column: 2; }
+  .route { grid-template-columns: 1fr; gap: 2px; }
+}
+</style>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#top">H2<span>DF</span></a>
+    <nav class="nav" id="nav">
+      <a href="#tldr">Tóm tắt</a>
+      <a href="#problem">Bài toán</a>
+      <a href="#idea">Ý tưởng</a>
+      <a href="#math">Công thức</a>
+      <a href="#workflow">Quy trình</a>
+      <a href="#sim">Ví dụ</a>
+      <a href="#setup">Thí nghiệm</a>
+      <a href="#tofu">TOFU</a>
+      <a href="#muse">MUSE</a>
+      <a href="#ablation">Ablation</a>
+      <a href="#analysis">Phân tích</a>
+      <a href="#limits">Giới hạn</a>
+      <a href="#talk">Kịch bản</a>
+      <a href="#qa">Q&amp;A</a>
+      <a href="#glossary">Thuật ngữ</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="top">
+
+<!-- HERO -->
+<div class="hero">
+  <div class="eyebrow"><b>arXiv:2610.26864v1</b> <span>cs.CL</span> <span>26 Jun 2026</span> <span>10 trang</span></div>
+  <h1>H2DF: Calibrated Target Bands for Controllable Language-Model Unlearning</h1>
+  <p class="by">Jupiter Yao, Cornell University</p>
+  <div class="thesis">
+    <div class="bar" aria-hidden="true"></div>
+    <div>
+      <q>"Forgetting should be a calibrated region, not an infinite direction."</q>
+      <p class="vi">Quên nên là một vùng mục tiêu đã hiệu chỉnh, không phải một hướng đẩy vô tận. (Design principle của paper, trang 2)</p>
+    </div>
+  </div>
+  <div class="chips">
+    <span class="chip acc">Machine unlearning</span><span class="chip">LLM</span><span class="chip">LoRA rank 8</span><span class="chip">TOFU</span><span class="chip">MUSE-News</span><span class="chip">Qwen2.5-1.5B</span><span class="chip">Llama-2-7B (MUSE target)</span>
+  </div>
+</div>
+
+<!-- TLDR -->
+<section id="tldr">
+  <div class="eyebrow"><b>Tóm tắt 60 giây</b> <span>Abstract, trang 1</span></div>
+  <h2>Ba ý cần nhớ</h2>
+  <div class="stack">
+    <div class="grid">
+      <div class="card tone-ga"><span class="k">Vấn đề</span><p>Gradient ascent (GA) làm model "quên" bằng cách tăng loss trên dữ liệu cần quên, và <b>không bao giờ dừng</b>. Kết quả: hỏng năng lực chung, và các ví dụ đã quên có loss cao bất thường.</p></div>
+      <div class="card tone-acc"><span class="k">Ý tưởng</span><p>Mỗi ví dụ cần quên có một <b>vùng mục tiêu [a<sub>i</sub>, b<sub>i</sub>]</b> cho loss, lấy từ quantile loss của dữ liệu tương tự mà model chưa từng học. Dưới a: đẩy như GA. Trong vùng: ngừng. Trên b: kéo ngược lại.</p></div>
+      <div class="card tone-below"><span class="k">Kết quả</span><p>TOFU: ngang GradDiff, ổn định hơn GA nhiều. MUSE-News: giữ năng lực tốt hơn GA và NPO, <b>cạnh tranh nhưng không vượt</b> SimNPO. Tác giả tự nhận đây là cơ chế điều khiển, không phải bảo đảm xóa dữ liệu.</p></div>
+    </div>
+    <div class="nums">
+      <div class="num"><div class="v">1.528 <small>± 0.049</small></div><div class="l">Forget NLL trên TOFU, 3 seed (cao hơn = quên nhiều hơn)</div></div>
+      <div class="num"><div class="v">1.165 <small>± 0.047</small></div><div class="l">Retain NLL trên TOFU, 3 seed (thấp hơn = giữ năng lực tốt hơn)</div></div>
+      <div class="num"><div class="v">-0.35</div><div class="l">Retain NLL so với GA và NPO trên MUSE-News</div></div>
+      <div class="num"><div class="v">47% <small>→ 30%</small></div><div class="l">Tỉ lệ ví dụ vượt quá band khi thêm upper target (MUSE, step 40)</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="eyebrow"><b>§1 Introduction</b> <span>trang 1-2, Eq. 1, Fig. 2</span></div>
+  <h2>Bài toán: làm LLM quên một phần dữ liệu</h2>
+  <p class="lead">Machine unlearning: gỡ ảnh hưởng của một tập dữ liệu chọn trước khỏi model mà không phải train lại từ đầu.</p>
+  <div class="stack">
+    <div class="grid two">
+      <div class="card">
+        <span class="k">Vì sao cần</span>
+        <ul>
+          <li>LLM có thể ghi nhớ dữ liệu riêng tư, có bản quyền, hoặc nội dung không mong muốn.</li>
+          <li>Train lại model lớn từ đầu quá đắt, nên cần cách "sửa" model đã train.</li>
+          <li>Hai tập dữ liệu: <b>forget set</b> (cần quên) và <b>retain set</b> (phải giữ năng lực).</li>
+        </ul>
+      </div>
+      <div class="eq">
+        <span class="k" style="font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Baseline: Gradient Ascent (Eq. 1)</span>
+        <div class="m">
+          <math display="block"><msub><mi>ℒ</mi><mtext>GA</mtext></msub><mo>(</mo><mi>θ</mi><mo>)</mo><mo>=</mo><mo>-</mo><mfrac><mn>1</mn><mrow><mo>|</mo><msub><mi>B</mi><mi>f</mi></msub><mo>|</mo></mrow></mfrac><munder><mo>∑</mo><mrow><mi>i</mi><mo>∈</mo><msub><mi>B</mi><mi>f</mi></msub></mrow></munder><msub><mi>ℓ</mi><mi>i</mi></msub><mo>(</mo><mi>θ</mi><mo>)</mo></math>
+        </div>
+        <p style="font-size:14.5px">Đảo dấu loss: thay vì giảm NLL (negative log-likelihood) trên forget batch, ta <b>tăng</b> nó. Rẻ, đơn giản, nhưng tối ưu hóa này không có điểm dừng.</p>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card tone-ga"><span class="k">Lỗi 1</span><p>Tiếp tục tăng loss sau khi model đã không còn tái tạo nội dung cần quên.</p></div>
+      <div class="card tone-ga"><span class="k">Lỗi 2</span><p>Áp lực không giới hạn làm hỏng utility trên retain set, có thể sụp đổ hoàn toàn.</p></div>
+      <div class="card tone-ga"><span class="k">Lỗi 3</span><p>Ví dụ đã quên có loss cao bất thường, chính điều đó lại để lộ chúng từng nằm trong dữ liệu.</p></div>
+    </div>
+    <div class="figure">
+      <h3>Lộ trình các objective unlearning (Fig. 2)</h3>
+      <div class="timeline">
+        <div class="tl"><div class="y">2015-2021</div><div class="n">Data deletion</div><div class="d">Xóa ảnh hưởng hoặc xấp xỉ việc train lại (SISA, certified removal)</div></div>
+        <div class="tl"><div class="y">2023</div><div class="n">Forget-loss ascent</div><div class="d">GA: scale tốt, đơn giản, nhưng không giới hạn</div></div>
+        <div class="tl"><div class="y">2023-2024</div><div class="n">Retain-aware</div><div class="d">Replay, distillation, ràng buộc (GradDiff)</div></div>
+        <div class="tl"><div class="y">2024</div><div class="n">Preference</div><div class="d">NPO, SimNPO làm dịu sự sụp đổ một cách ngầm</div></div>
+        <div class="tl now"><div class="y">Paper này</div><div class="n">H2DF</div><div class="d">Vùng dừng tường minh, hiệu chỉnh từ dữ liệu non-member</div></div>
+      </div>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>Gradient ascent treats forgetting as an infinite direction. It never knows when to stop.</q></div>
+  </div>
+</section>
+
+<!-- IDEA -->
+<section id="idea">
+  <div class="eyebrow"><b>Ý tưởng chính</b> <span>Fig. 1, trang 1 · Eq. 5, trang 2</span></div>
+  <h2>Áp lực quên theo từng vùng loss</h2>
+  <p class="lead">Trục ngang là forget score s<sub>i</sub> (NLL của ví dụ cần quên, cao = quên nhiều). Trục dọc là "áp lực đẩy s<sub>i</sub> tăng". Kéo slider để xem H2DF thay đổi ra sao; di chuột trên biểu đồ để đọc giá trị.</p>
+  <div class="stack">
+    <div class="figure">
+      <div class="legend">
+        <span><i style="background:var(--ga)"></i>GA: luôn = 1</span>
+        <span><i style="background:var(--pref)"></i>Preference (NPO/SimNPO): giảm ngầm, minh họa</span>
+        <span><i style="background:var(--h2df);height:4px"></i>H2DF</span>
+        <span><i class="box" style="background:var(--band)"></i>Target band [a<sub>i</sub>, b<sub>i</sub>]</span>
+      </div>
+      <div class="scroll"><svg id="pressure" viewBox="0 0 640 310" role="img" aria-label="Pressure curves for GA, preference methods and H2DF against forget score"></svg></div>
+      <div class="readout" id="pressure-out" aria-live="polite"></div>
+      <div class="controls">
+        <div class="ctl"><label for="p-a">Lower target a<sub>i</sub> <output id="p-a-o"></output></label><input type="range" id="p-a" min="0.6" max="2.2" step="0.05" value="1.4"></div>
+        <div class="ctl"><label for="p-b">Upper target b<sub>i</sub> <output id="p-b-o"></output></label><input type="range" id="p-b" min="0.9" max="3.2" step="0.05" value="2.2"></div>
+        <div class="ctl"><label for="p-t">Độ mềm τ <output id="p-t-o"></output></label><input type="range" id="p-t" min="0.05" max="0.6" step="0.01" value="0.25"></div>
+        <div class="ctl"><label for="p-g">Trọng số upper γ <output id="p-g-o"></output></label><input type="range" id="p-g" min="0" max="1" step="0.05" value="0.5"></div>
+      </div>
+      <p class="cap">Đường H2DF là -∂L<sub>i</sub>/∂s<sub>i</sub> theo Eq. 5 của paper. Đường Preference chỉ mang tính minh họa giống Fig. 1, không phải công thức NPO thật. Thử γ = 0: không còn phần âm, đó là bản one-sided dùng cho TOFU.</p>
+    </div>
+    <div class="tablewrap">
+      <table class="zones">
+        <thead><tr><th>Vùng</th><th>Hệ số α<sub>i</sub></th><th>Hành vi</th></tr></thead>
+        <tbody>
+          <tr><td><span class="zdot" style="background:var(--below)"></span>s<sub>i</sub> &lt; a<sub>i</sub> (quên chưa đủ)</td><td>≈ 1</td><td>Đẩy giống hệt hướng GA</td></tr>
+          <tr><td><span class="zdot" style="background:var(--accent)"></span>a<sub>i</sub> ≤ s<sub>i</sub> ≤ b<sub>i</sub> (trong band)</td><td>→ 0</td><td>Áp lực bão hòa, gần như ngừng</td></tr>
+          <tr><td><span class="zdot" style="background:var(--ga)"></span>s<sub>i</sub> &gt; b<sub>i</sub> (quên quá tay)</td><td>&lt; 0 khi γ &gt; 0</td><td>Gradient kéo ngược, giảm overshoot</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>Below the band: push like GA. Inside: stop. Above: pull back.</q></div>
+  </div>
+</section>
+
+<!-- MATH -->
+<section id="math">
+  <div class="eyebrow"><b>§2 Method</b> <span>Eq. 2-7, trang 2-3</span></div>
+  <h2>Công thức, đọc từng phần</h2>
+  <p class="lead">Không cần thuộc lòng. Khi trình bày, chỉ cần giải thích Eq. 3 (objective) và Eq. 4 (hệ số α) bằng màu: xanh là phần "quên chưa đủ", đỏ là phần "quên quá tay".</p>
+  <div class="stack">
+    <div class="eq">
+      <span class="tag">Eq. 2 · Target band từ quantile của dữ liệu non-member</span>
+      <div class="m"><math display="block"><msub><mi>a</mi><mi>i</mi></msub><mo>=</mo><msub><mi>Q</mi><msub><mi>ρ</mi><mtext>low</mtext></msub></msub><mo>(</mo><msub><mi>s</mi><mtext>cal</mtext></msub><mo>|</mo><msub><mi>c</mi><mi>i</mi></msub><mo>)</mo><mo>,</mo><mspace width="1.2em"></mspace><msub><mi>b</mi><mi>i</mi></msub><mo>=</mo><msub><mi>Q</mi><msub><mi>ρ</mi><mtext>high</mtext></msub></msub><mo>(</mo><msub><mi>s</mi><mtext>cal</mtext></msub><mo>|</mo><msub><mi>c</mi><mi>i</mi></msub><mo>)</mo></math></div>
+      <p style="font-size:14.5px">s<sub>cal</sub>: loss của model gốc trên tập calibration (dữ liệu tương tự nhưng model chưa học). c<sub>i</sub>: đặc trưng để ghép cặp (độ dài, domain, loss của model gốc). Q<sub>ρ</sub>: quantile thực nghiệm. MUSE dùng (ρ<sub>low</sub>, ρ<sub>high</sub>) = (0.5, 0.9).</p>
+    </div>
+    <div class="eq">
+      <span class="tag">Smooth hinge (softplus)</span>
+      <div class="m"><math display="block"><msub><mi>h</mi><mi>τ</mi></msub><mo>(</mo><mi>u</mi><mo>)</mo><mo>=</mo><mi>τ</mi><mi>log</mi><mo>(</mo><mn>1</mn><mo>+</mo><mi>exp</mi><mo>(</mo><mi>u</mi><mo>/</mo><mi>τ</mi><mo>)</mo><mo>)</mo></math></div>
+      <p style="font-size:14.5px">Gần giống max(0, u) nhưng trơn để lấy đạo hàm. τ nhỏ thì góc gãy càng sắc. Paper dùng τ = 0.25.</p>
+    </div>
+    <div class="eq">
+      <span class="tag">Eq. 3 · Objective H2DF</span>
+      <div class="m"><math display="block"><msub><mi>ℒ</mi><mtext>H2DF</mtext></msub><mo>(</mo><mi>θ</mi><mo>)</mo><mo>=</mo><mfrac><mn>1</mn><mrow><mo>|</mo><msub><mi>B</mi><mi>f</mi></msub><mo>|</mo></mrow></mfrac><munder><mo>∑</mo><mrow><mi>i</mi><mo>∈</mo><msub><mi>B</mi><mi>f</mi></msub></mrow></munder><mo>[</mo><mrow class="t-low"><msub><mi>h</mi><mi>τ</mi></msub><mo>(</mo><msub><mi>a</mi><mi>i</mi></msub><mo>-</mo><msub><mi>s</mi><mi>i</mi></msub><mo>(</mo><mi>θ</mi><mo>)</mo><mo>)</mo></mrow><mo>+</mo><mrow class="t-up"><mi>γ</mi><msub><mi>h</mi><mi>τ</mi></msub><mo>(</mo><msub><mi>s</mi><mi>i</mi></msub><mo>(</mo><mi>θ</mi><mo>)</mo><mo>-</mo><msub><mi>b</mi><mi>i</mi></msub><mo>)</mo></mrow><mo>]</mo><mo>+</mo><mrow class="t-reg"><mi>λ</mi><msubsup><mrow><mo>‖</mo><msub><mi>θ</mi><mtext>LoRA</mtext></msub><mo>‖</mo></mrow><mn>2</mn><mn>2</mn></msubsup></mrow></math></div>
+      <div class="chips" style="margin-top:0">
+        <span class="chip" style="color:var(--accent)">Phần xanh: phạt khi quên chưa đủ</span>
+        <span class="chip" style="color:var(--ga)">Phần đỏ: phạt khi quên quá tay (γ = 0 thì bỏ)</span>
+        <span class="chip">Phần xám: L2 trên LoRA, λ = 10<sup>-4</sup></span>
+      </div>
+      <p style="font-size:14.5px">a<sub>i</sub>, b<sub>i</sub> tính sẵn trước khi train, nên mỗi bước chỉ cần 1 forward/backward trên forget batch, cùng cấu trúc chi phí với GA.</p>
+    </div>
+    <div class="grid two">
+      <div class="eq">
+        <span class="tag">Eq. 4 · Gradient bản one-sided</span>
+        <div class="m"><math display="block"><msub><mi>∇</mi><mi>θ</mi></msub><msub><mi>h</mi><mi>τ</mi></msub><mo>(</mo><msub><mi>a</mi><mi>i</mi></msub><mo>-</mo><msub><mi>s</mi><mi>i</mi></msub><mo>)</mo><mo>=</mo><mo>-</mo><msub><mi>α</mi><mi>i</mi></msub><msub><mi>∇</mi><mi>θ</mi></msub><msub><mi>s</mi><mi>i</mi></msub><mo>,</mo><mspace width="0.8em"></mspace><msub><mi>α</mi><mi>i</mi></msub><mo>=</mo><mi>σ</mi><mrow><mo>(</mo><mfrac><mrow><msub><mi>a</mi><mi>i</mi></msub><mo>-</mo><msub><mi>s</mi><mi>i</mi></msub></mrow><mi>τ</mi></mfrac><mo>)</mo></mrow></math></div>
+        <p style="font-size:14.5px">α<sub>i</sub> là "núm vặn" tự động: ≈ 1 khi còn xa target (giống GA), về 0 khi đã vượt a<sub>i</sub>.</p>
+      </div>
+      <div class="eq">
+        <span class="tag">Eq. 5 · Thêm upper target</span>
+        <div class="m"><math display="block"><mfrac><mrow><mo>∂</mo><msub><mi>L</mi><mi>i</mi></msub></mrow><mrow><mo>∂</mo><msub><mi>s</mi><mi>i</mi></msub></mrow></mfrac><mo>=</mo><mrow class="t-low"><mo>-</mo><mi>σ</mi><mo>(</mo><mfrac><mrow><msub><mi>a</mi><mi>i</mi></msub><mo>-</mo><msub><mi>s</mi><mi>i</mi></msub></mrow><mi>τ</mi></mfrac><mo>)</mo></mrow><mo>+</mo><mrow class="t-up"><mi>γ</mi><mi>σ</mi><mo>(</mo><mfrac><mrow><msub><mi>s</mi><mi>i</mi></msub><mo>-</mo><msub><mi>b</mi><mi>i</mi></msub></mrow><mi>τ</mi></mfrac><mo>)</mo></mrow></math></div>
+        <p style="font-size:14.5px">Loss quá lớn thì nhận gradient phục hồi (restoring gradient), kéo ví dụ về lại band.</p>
+      </div>
+    </div>
+    <div class="eq">
+      <span class="tag">Eq. 7 · Target cho TOFU (one-sided, γ = 0)</span>
+      <div class="m"><math display="block"><msub><mi>a</mi><mi>i</mi></msub><mo>=</mo><mi>max</mi><mo>{</mo><msub><mi>s</mi><mi>i</mi></msub><mo>(</mo><msub><mi>θ</mi><mn>0</mn></msub><mo>)</mo><mo>+</mo><msub><mi>Δ</mi><mtext>min</mtext></msub><mo>,</mo><msub><mi>Q</mi><mi>ρ</mi></msub><mo>(</mo><msub><mi>s</mi><mtext>cal</mtext></msub><mo>(</mo><msub><mi>θ</mi><mn>0</mn></msub><mo>)</mo><mo>|</mo><msub><mi>c</mi><mi>i</mi></msub><mo>)</mo><mo>}</mo></math></div>
+      <p style="font-size:14.5px">Target ít nhất phải cao hơn loss gốc Δ<sub>min</sub> = 0.5, và ít nhất bằng quantile ρ = 0.7 của non-member. Score TOFU là NLL chỉ tính trên token câu trả lời (Eq. 6).</p>
+    </div>
+    <div class="card">
+      <span class="k">Điểm tinh tế paper tự nêu (§2.2)</span>
+      <p>Hệ số α bị chặn, nhưng Jacobian ∇<sub>θ</sub>s<sub>i</sub> của model thì không. Paper chỉ khẳng định: objective này <b>bỏ được động lực vô hướng</b> (scalar incentive) liên tục tăng loss của GA. Nó không khẳng định mỗi bước update nhỏ đi.</p>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>Same cost per step as gradient ascent. The only difference is a coefficient that turns itself off.</q></div>
+  </div>
+</section>
+
+<!-- WORKFLOW -->
+<section id="workflow">
+  <div class="eyebrow"><b>Quy trình</b> <span>Fig. 3, trang 3 · Algorithm 1 và Appendix C, trang 9-10</span></div>
+  <h2>Hiệu chỉnh một lần, train như GA</h2>
+  <div class="stack">
+    <div class="flow">
+      <div class="phase">
+        <div class="ph"><h3>1. Calibration</h3><span class="chip">offline, 1 lần</span></div>
+        <ol>
+          <li>Chấm điểm forget set D<sub>f</sub> và calibration set D<sub>cal</sub> bằng model gốc θ<sub>0</sub>.</li>
+          <li>Chia bin thô theo đặc trưng: độ dài, loss gốc, domain. Bin quá nhỏ thì bỏ bớt đặc trưng (back-off).</li>
+          <li>Tính a<sub>i</sub>, b<sub>i</sub> từ quantile trong bin tương ứng. TOFU: a<sub>i</sub> ≥ s<sub>i</sub>(θ<sub>0</sub>) + 0.5.</li>
+        </ol>
+      </div>
+      <div class="phase">
+        <div class="ph"><h3>2. Unlearning</h3><span class="chip">online, mỗi bước</span></div>
+        <ol>
+          <li>Lấy forget batch, tính s<sub>i</sub>(θ) với model hiện tại.</li>
+          <li>Tính loss Eq. 3. Định tuyến theo vùng:</li>
+        </ol>
+        <div class="router">
+          <div class="route" style="border-left:4px solid var(--below)"><code>s &lt; a</code><span>áp lực giống GA</span></div>
+          <div class="route" style="border-left:4px solid var(--accent)"><code>a ≤ s ≤ b</code><span>áp lực bão hòa</span></div>
+          <div class="route" style="border-left:4px solid var(--ga)"><code>s &gt; b</code><span>upper penalty kéo về</span></div>
+        </div>
+        <ol start="3">
+          <li>Tùy chọn: retain batch mỗi K bước (TOFU: K = 10). Log tỉ lệ ví dụ trong/ngoài band.</li>
+        </ol>
+      </div>
+      <div class="phase">
+        <div class="ph"><h3>3. Chọn checkpoint</h3><span class="chip">validation 200 ví dụ</span></div>
+        <div class="m" style="overflow-x:auto"><math display="block"><msub><mi>r</mi><mi>t</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><mo>|</mo><msub><mi>V</mi><mi>f</mi></msub><mo>|</mo></mrow></mfrac><munder><mo>∑</mo><mrow><mi>i</mi><mo>∈</mo><msub><mi>V</mi><mi>f</mi></msub></mrow></munder><mn>1</mn><mo>[</mo><msub><mi>s</mi><mi>i</mi></msub><mo>(</mo><msub><mi>θ</mi><mi>t</mi></msub><mo>)</mo><mo>&lt;</mo><msub><mi>a</mi><mi>i</mi></msub><mo>]</mo><mo>,</mo><mspace width="0.8em"></mspace><msup><mi>t</mi><mo>⋆</mo></msup><mo>=</mo><munder><mtext>argmin</mtext><mi>t</mi></munder><mo>|</mo><msub><mi>r</mi><mi>t</mi></msub><mo>-</mo><mn>0.5</mn><mo>|</mo></math></div>
+        <p style="font-size:14.5px">Chọn checkpoint mà khoảng 50% ví dụ validation còn dưới lower target (Eq. 9-10). Sau đó đánh giá 1 lần trên held-out. Paper gọi đây là heuristic thực dụng, không phải quy tắc tối ưu.</p>
+      </div>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>Targets come from non-member data, computed once before training.</q></div>
+  </div>
+</section>
+
+<!-- SIM -->
+<section id="sim">
+  <div class="eyebrow"><b>§2.4 Ví dụ minh họa</b> <span>Fig. 4, trang 3</span></div>
+  <h2>Một câu trả lời bị ghi nhớ, hai cách quên</h2>
+  <p class="lead">Model gốc cho NLL 0.4 với một câu trả lời đã thuộc. Non-member tương tự cho band [1.4, 2.2]. Bấm Chạy để xem GA và H2DF đi qua 10 bước update. Đây là mô phỏng vô hướng trên s<sub>i</sub>, giống tinh thần Fig. 4, không phải dữ liệu thí nghiệm.</p>
+  <div class="stack">
+    <div class="figure">
+      <div class="legend">
+        <span><i style="background:var(--ga)"></i>GA</span>
+        <span><i style="background:var(--h2df);height:4px"></i>H2DF</span>
+        <span><i class="box" style="background:var(--band)"></i>Band [1.4, 2.2]</span>
+      </div>
+      <div class="scroll"><svg id="simsvg" viewBox="0 0 640 300" role="img" aria-label="Simulated answer NLL over update steps for GA and H2DF"></svg></div>
+      <div class="readout" id="sim-out" aria-live="polite"></div>
+      <div class="controls">
+        <div class="ctl"><label for="s-eta">Bước học η <output id="s-eta-o"></output></label><input type="range" id="s-eta" min="0.2" max="1.0" step="0.05" value="0.45"></div>
+        <div class="ctl"><span style="color:var(--muted)">Upper target</span>
+          <div class="btns"><button type="button" id="s-g1" aria-pressed="true">Two-sided γ = 0.5</button><button type="button" id="s-g0" aria-pressed="false">Lower-only γ = 0</button></div>
+        </div>
+      </div>
+      <div class="btns"><button type="button" class="pri" id="s-play">Chạy</button><button type="button" id="s-step">Từng bước</button><button type="button" id="s-reset">Về bước 0</button></div>
+    </div>
+    <div class="mine"><b>Ghi chú của mình:</b> trong mô phỏng vô hướng này, lower-only cũng gần như dừng trong band. Nhưng ablation thật (mục Ablation) cho thấy lower-only vượt band 47% ví dụ. Lý do khả dĩ: các ví dụ dùng chung tham số LoRA, nên gradient của ví dụ còn dưới target vẫn kéo loss của ví dụ đã đạt target lên tiếp. Đây là suy luận, paper chỉ nói Jacobian không bị chặn.</div>
+    <div class="say"><span class="t">Slide line</span><q>GA keeps climbing. H2DF settles where unseen data naturally sits.</q></div>
+  </div>
+</section>
+
+<!-- SETUP -->
+<section id="setup">
+  <div class="eyebrow"><b>§3 Experimental Setup</b> <span>trang 3-4 · Table 6, trang 9</span></div>
+  <h2>Hai benchmark, cùng ngân sách LoRA</h2>
+  <div class="stack">
+    <div class="grid two">
+      <div class="card">
+        <span class="k">TOFU · hỏi đáp về tác giả hư cấu</span>
+        <p>Model: <b>Qwen2.5-1.5B-Instruct</b> + adapter SFT trên TOFU. Quên split forget-5%.</p>
+        <div class="chips" style="margin-top:4px"><span class="chip">LoRA rank 8</span><span class="chip">AdamW lr 1e-4</span><span class="chip">batch 4</span><span class="chip">500 steps</span><span class="chip">τ 0.25</span><span class="chip">ρ 0.7</span><span class="chip">Δmin 0.5</span><span class="chip">γ 0</span><span class="chip acc">retain mỗi 10 bước</span><span class="chip">seed 42, 43, 44</span></div>
+        <p class="note">Đánh giá: 200 forget, 3,420 retain. Exact match ≈ 0 với mọi method nên dùng token F1.</p>
+      </div>
+      <div class="card">
+        <span class="k">MUSE-News · language modeling trên tin tức</span>
+        <p>Model: <b>muse-bench/MUSE-News_target</b>, tokenizer Llama-2-7b-hf.</p>
+        <div class="chips" style="margin-top:4px"><span class="chip">LoRA rank 8</span><span class="chip">AdamW lr 2e-5</span><span class="chip">batch hiệu dụng 4</span><span class="chip">50 steps</span><span class="chip">τ 0.25</span><span class="chip acc">γ 0.5</span><span class="chip">ρ (0.5, 0.9)</span><span class="chip">không retain</span><span class="chip">seed 42</span></div>
+        <p class="note">Đánh giá: 888 forget, 1,778 retain, 1,521 calibration. Checkpoint chọn trên tập validation 200 ví dụ.</p>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card"><span class="k">Baselines (cùng LoRA)</span><div class="chips" style="margin-top:0"><span class="chip"><span class="sw" style="background:var(--orig)"></span>Original</span><span class="chip"><span class="sw" style="background:var(--ga)"></span>GA</span><span class="chip"><span class="sw" style="background:var(--gd)"></span>GradDiff</span><span class="chip"><span class="sw" style="background:var(--pref)"></span>NPO</span><span class="chip"><span class="sw" style="background:var(--simnpo)"></span>SimNPO</span><span class="chip"><span class="sw" style="background:var(--h2df)"></span>H2DF</span></div><p class="note">RMU bị loại khỏi so sánh chính vì bản phát hành dùng LoRA thay vì full-parameter như gốc.</p></div>
+      <div class="card"><span class="k">Metric TOFU</span><ul><li>Forget NLL ↑, Forget F1 ↓</li><li>Retain NLL ↓, Retain F1 ↑</li></ul></div>
+      <div class="card"><span class="k">Metric MUSE</span><ul><li>VerbMem-Forget ↓, KnowMem-Forget ↓</li><li>KnowMem-Retain ↑</li><li>PrivLeak: giữ quy ước dấu của evaluator, không xếp hạng</li><li>MIA AUC, band fraction: chỉ để chẩn đoán</li></ul></div>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>Two benchmarks, the same LoRA parameterization for every method.</q></div>
+  </div>
+</section>
+
+<!-- TOFU -->
+<section id="tofu">
+  <div class="eyebrow"><b>§4.1 Kết quả TOFU</b> <span>Table 1, Table 2, Fig. 5, trang 4</span></div>
+  <h2>Ngang GradDiff, ổn định hơn GA nhiều</h2>
+  <div class="stack">
+    <div class="figure">
+      <div class="btns" role="group" aria-label="Chế độ dữ liệu">
+        <button type="button" id="t-mean" aria-pressed="true">Trung bình ± SD, 3 seed (Fig. 5)</button>
+        <button type="button" id="t-seed" aria-pressed="false">Seed 42, tất cả method (Table 1)</button>
+      </div>
+      <div class="scroll"><svg id="tofusvg" viewBox="0 0 640 340" role="img" aria-label="TOFU forget NLL versus retain NLL"></svg></div>
+      <div class="readout" id="tofu-out" aria-live="polite"></div>
+      <p class="cap">Góc trên bên trái là tốt nhất: quên nhiều (forget NLL cao) và giữ năng lực (retain NLL thấp). Di chuột hoặc chạm vào điểm để xem đủ 4 metric.</p>
+    </div>
+    <div class="tablewrap">
+      <table class="data" id="tofu-table">
+        <thead><tr><th>Seed 42</th><th>Forget NLL ↑</th><th>Forget F1 ↓</th><th>Retain NLL ↓</th><th>Retain F1 ↑</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="grid">
+      <div class="card"><span class="k">SimNPO</span><p>Quên mạnh nhất (forget NLL 1.643, F1 0.287) nhưng mất năng lực nhiều nhất (retain NLL 1.365).</p></div>
+      <div class="card tone-acc"><span class="k">H2DF vs GradDiff</span><p>NLL gần như trùng. H2DF có retain F1 cao hơn (0.360 vs 0.353) dù chỉ replay retain mỗi 10 bước, GradDiff replay mọi bước.</p></div>
+      <div class="card tone-ga"><span class="k">GA</span><p>Trung bình quên mạnh hơn nhưng SD forget NLL 0.196, gấp khoảng 4 lần H2DF (0.049). Seed 44 làm tăng cả retain NLL.</p></div>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>Matches GradDiff with retain replay only every tenth step, and far less variance than GA.</q></div>
+  </div>
+</section>
+
+<!-- MUSE -->
+<section id="muse">
+  <div class="eyebrow"><b>§4.2 Kết quả MUSE-News</b> <span>Table 3, Table 4, trang 5</span></div>
+  <h2>Cạnh tranh với SimNPO, không vượt</h2>
+  <div class="stack">
+    <div class="figure">
+      <h3>Chẩn đoán nội bộ, held-out đầy đủ (Table 3)</h3>
+      <div class="tabs" role="group" aria-label="Chọn metric" id="muse-tabs"></div>
+      <div class="bars" id="muse-bars"></div>
+      <p class="cap" id="muse-cap"></p>
+    </div>
+    <div class="figure">
+      <h3>Metric chính thức của MUSE (Table 4)</h3>
+      <div class="tablewrap">
+        <table class="data">
+          <thead><tr><th>Model</th><th>VerbMem-Forget ↓</th><th>KnowMem-Forget ↓</th><th>KnowMem-Retain ↑</th><th>PrivLeak</th></tr></thead>
+          <tbody>
+            <tr><td><span class="sw" style="background:var(--orig)"></span>Original</td><td>57.42</td><td>64.09</td><td>54.12</td><td>-99.81</td></tr>
+            <tr><td><span class="sw" style="background:var(--simnpo)"></span>SimNPO</td><td class="best">19.27</td><td>45.74</td><td>38.27</td><td>-98.32</td></tr>
+            <tr class="me"><td><span class="sw" style="background:var(--h2df)"></span>H2DF</td><td>20.71</td><td>45.83</td><td class="best">38.72</td><td>-96.52</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cap">Chỉ có seed 42, nên chênh lệch nhỏ không ổn định về thống kê. Paper không diễn giải hướng của PrivLeak.</p>
+    </div>
+    <div class="grid">
+      <div class="card tone-ga"><span class="k">GA, NPO</span><p>MIA AUC thấp nhất (0.934) nhưng retain NLL tệ nhất (khoảng 2.0).</p></div>
+      <div class="card tone-acc"><span class="k">H2DF</span><p>Retain NLL thấp hơn GA và NPO 0.35. AUC thấp hơn GradDiff (0.949 vs 0.961).</p></div>
+      <div class="card"><span class="k">SimNPO</span><p>Retain NLL tốt hơn (1.597 vs 1.666), band fraction cao hơn (0.144 vs 0.131), quên verbatim tốt hơn. H2DF giữ KnowMem-Retain hơn một chút.</p></div>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>Better retention than GA and NPO. Competitive with SimNPO, not dominant.</q></div>
+  </div>
+</section>
+
+<!-- ABLATION -->
+<section id="ablation">
+  <div class="eyebrow"><b>§4.3 Target-band ablations</b> <span>Table 5, Fig. 6, trang 5</span></div>
+  <h2>Upper target và thời điểm dừng quan trọng như nhau</h2>
+  <p class="lead">Tỉ lệ ví dụ forget nằm dưới, trong, hoặc trên band, trên tập validation 200 ví dụ của MUSE. Cột phải là retain NLL (thấp = tốt).</p>
+  <div class="stack">
+    <div class="figure">
+      <div class="legend">
+        <span><i class="box" style="background:var(--below)"></i>Dưới band (quên chưa đủ)</span>
+        <span><i class="box" style="background:var(--accent)"></i>Trong band</span>
+        <span><i class="box" style="background:var(--ga)"></i>Trên band (overshoot)</span>
+      </div>
+      <div class="bars" id="abl"></div>
+    </div>
+    <div class="grid">
+      <div class="card tone-acc"><span class="k">Upper target có tác dụng</span><p>Step 40: overshoot 30.0% (two-sided) vs 47.0% (lower-only). Retain NLL 1.598 vs 1.790.</p></div>
+      <div class="card tone-ga"><span class="k">Chạy tới cuối thì hỏng</span><p>Step 50 cố định: overshoot 56% và 79.5%, retain NLL tăng mạnh ở cả hai.</p></div>
+      <div class="card tone-below"><span class="k">Retain replay quá tay</span><p>Retain weight 0.1 kéo ngược: 90.5% ví dụ còn dưới target.</p></div>
+      <div class="card"><span class="k">Nhiều seed</span><p>Step được chọn: 40, 50, 50 cho seed 42, 43, 44. Seed 43 có forget NLL 0.956 và 93% còn dưới target: 50 bước không đủ.</p></div>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>The upper target and the checkpoint rule matter as much as the lower target.</q></div>
+  </div>
+</section>
+
+<!-- ANALYSIS -->
+<section id="analysis">
+  <div class="eyebrow"><b>§5 Analysis and Discussion</b> <span>trang 5-6, Eq. 8</span></div>
+  <h2>Chi phí, phạm vi kiểm soát, độ tin cậy của target</h2>
+  <div class="stack">
+    <div class="figure">
+      <h3>Chi phí trong 10 bước train</h3>
+      <div class="legend"><span><i class="box" style="background:var(--fpass)"></i>Forward/backward trên forget batch (≈ 3F)</span><span><i class="box" style="border:2px solid var(--gd);background:transparent"></i>Forward/backward trên retain batch</span></div>
+      <div class="cost" id="cost"></div>
+      <p class="cap">F(b) là chi phí forward với batch b, backward ≈ 2F(b). Giả định retain batch cùng kích thước forget batch để so sánh trực quan; paper không nêu con số này cho từng method.</p>
+    </div>
+    <div class="grid two">
+      <div class="card tone-acc"><span class="k">Band kiểm soát được</span><p>Loss của từng ví dụ so với phân phối tham chiếu non-member.</p></div>
+      <div class="card tone-ga"><span class="k">Band không bảo đảm</span><ul><li>Không chứng nhận đã xóa ảnh hưởng của dữ liệu.</li><li>Loss khớp không có nghĩa hành vi hay privacy khớp.</li><li>Chẩn đoán loss không quyết định VerbMem, KnowMem, PrivLeak.</li></ul></div>
+    </div>
+    <div class="figure">
+      <h3>Calibration cần bao nhiêu mẫu? (Eq. 8, bất đẳng thức DKW)</h3>
+      <div class="m" style="overflow-x:auto"><math display="block"><munder><mi>sup</mi><mi>z</mi></munder><mo>|</mo><msub><mover><mi>F</mi><mo>^</mo></mover><mi>n</mi></msub><mo>(</mo><mi>z</mi><mo>)</mo><mo>-</mo><mi>F</mi><mo>(</mo><mi>z</mi><mo>)</mo><mo>|</mo><mo>≤</mo><msqrt><mfrac><mrow><mi>log</mi><mo>(</mo><mn>2</mn><mo>/</mo><mi>δ</mi><mo>)</mo></mrow><mrow><mn>2</mn><mi>n</mi></mrow></mfrac></msqrt></math></div>
+      <div class="controls">
+        <div class="ctl"><label for="d-n">Số mẫu trong một bin n <output id="d-n-o"></output></label><input type="range" id="d-n" min="10" max="2000" step="10" value="100"></div>
+        <div class="ctl"><label for="d-d">Xác suất sai δ</label>
+          <select id="d-d" style="font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink)"><option value="0.1">0.10</option><option value="0.05" selected>0.05</option><option value="0.01">0.01</option></select>
+        </div>
+      </div>
+      <div class="readout" id="dkw-out" aria-live="polite"></div>
+      <p class="cap">Đây là lý do paper dùng bin thô và kích thước bin tối thiểu. Bound này chỉ xử lý sai số lấy mẫu: tập calibration lớn nhưng lệch phân phối vẫn cho target sai.</p>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>The extra work moves into a one-time calibration, not into every training step.</q></div>
+  </div>
+</section>
+
+<!-- LIMITS -->
+<section id="limits">
+  <div class="eyebrow"><b>§7 Limitations, §8 Conclusion</b> <span>trang 6-7</span></div>
+  <h2>Giới hạn tác giả tự nêu</h2>
+  <div class="stack">
+    <div class="grid">
+      <div class="card"><span class="k">1 · Seed</span><p>MUSE official chỉ có seed 42. Validation screen cho thấy nhạy với seed.</p></div>
+      <div class="card"><span class="k">2 · Phạm vi</span><p>Chưa đánh giá MUSE-Books, yêu cầu quên tuần tự, hay model lớn hơn.</p></div>
+      <div class="card"><span class="k">3 · So sánh chéo</span><p>TOFU và MUSE dùng base model và chế độ đánh giá khác nhau, không so số giữa hai bên.</p></div>
+      <div class="card"><span class="k">4 · Proxy</span><p>Target dựa trên loss là proxy, không phải bảo đảm unlearning có chứng nhận. Phụ thuộc chất lượng tập calibration.</p></div>
+    </div>
+    <div class="figure">
+      <h3>Điểm mình nhận thấy khi đọc kỹ</h3>
+      <div class="mine"><b>Band fraction thấp.</b> Trên MUSE, H2DF chỉ đưa 13.1% ví dụ vào band (Table 3). Ở ablation, two-sided step 40 có 12.5% trong band. Phần lớn ví dụ vẫn ở dưới hoặc trên band, nên "band" là hướng dẫn hơn là kết quả đạt được.</div>
+      <div class="mine"><b>Quy tắc chọn checkpoint cố ý dừng sớm.</b> Chọn khi khoảng 50% ví dụ còn dưới lower target, tức là chấp nhận một nửa chưa quên đủ để tránh overshoot.</div>
+      <div class="mine"><b>"Chỉ 1 forget pass mỗi bước" có điều kiện.</b> Đúng cho objective gốc và run MUSE. Bản TOFU được báo cáo có thêm retain replay mỗi 10 bước.</div>
+      <div class="mine"><b>Fig. 4 dùng upper term,</b> trong khi cấu hình TOFU thật là one-sided (γ = 0). Hình chỉ là minh họa, tác giả đã ghi rõ.</div>
+      <div class="mine"><b>Tên "H2DF" không được giải thích</b> ở đâu trong paper.</div>
+      <div class="mine"><b>MIA AUC vẫn khoảng 0.95</b> sau unlearning (Original 0.981). Nếu AUC đo khả năng phân biệt forget với non-member thì 0.5 mới là không phân biệt được. Paper không nêu rõ cách tính, nên cần kiểm tra lại trước khi khẳng định khi trình bày.</div>
+    </div>
+    <div class="card tone-acc">
+      <span class="k">Kết luận của paper</span>
+      <p>Calibrated target band là <b>cơ chế để quên có kiểm soát</b>, không phải bảo đảm xóa dữ liệu hoàn toàn. Upper target giảm overshoot; chọn checkpoint và độ ổn định tối ưu hóa vẫn là bài toán mở.</p>
+    </div>
+    <div class="say"><span class="t">Slide line</span><q>A mechanism for controllable forgetting, not a guarantee of data removal.</q></div>
+  </div>
+</section>
+
+<!-- TALK -->
+<section id="talk">
+  <div class="eyebrow"><b>Kịch bản thuyết trình</b> <span>gợi ý khoảng 13 phút</span></div>
+  <h2>11 slide, mỗi slide một câu chốt</h2>
+  <p class="lead">Cột "Mở" là phần trên trang này để chiếu hoặc chụp làm hình cho slide. Câu chốt viết bằng tiếng Anh để đặt thẳng lên slide.</p>
+  <div class="stack">
+    <div class="talk" id="talk-list"></div>
+  </div>
+</section>
+
+<!-- QA -->
+<section id="qa">
+  <div class="eyebrow"><b>Chuẩn bị Q&amp;A</b> <span>câu hỏi dễ gặp</span></div>
+  <h2>Câu hỏi khán giả có thể hỏi</h2>
+  <div class="stack"><div class="qa" id="qa-list"></div></div>
+</section>
+
+<!-- GLOSSARY -->
+<section id="glossary">
+  <div class="eyebrow"><b>Thuật ngữ</b></div>
+  <h2>Bảng tra nhanh</h2>
+  <div class="stack"><div class="gloss" id="gloss"></div></div>
+</section>
+
+<footer>
+  Số liệu trích từ arXiv:2610.26864v1 (Jupiter Yao, Cornell University). Đường Preference trong biểu đồ áp lực và mô phỏng 10 bước là minh họa, không phải kết quả thí nghiệm. Mục "Ghi chú của mình" và "Điểm mình nhận thấy" là nhận xét của người đọc, không phải của tác giả.
+</footer>
+</main>
+
+<script>
+(function () {
+  const NS = 'http://www.w3.org/2000/svg';
+  const $ = s => document.querySelector(s);
+  const sig = x => 1 / (1 + Math.exp(-x));
+  const lin = (d0, d1, r0, r1) => v => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, cls, anchor) {
+    const t = el('text', { x, y, class: cls || 'tick', 'text-anchor': anchor || 'middle' }, parent);
+    t.textContent = s;
+    return t;
+  }
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- Pressure curves (Fig. 1 / Eq. 5) ---------- */
+  const P = { a: 1.4, b: 2.2, tau: 0.25, gamma: 0.5, s: 1.0 };
+  const PW = 640, PH = 310, pm = { l: 46, r: 16, t: 26, b: 42 };
+  const px = lin(0, 3.5, pm.l, PW - pm.r), py = lin(-1.1, 1.15, PH - pm.b, pm.t);
+  const h2df = s => sig((P.a - s) / P.tau) - P.gamma * sig((s - P.b) / P.tau);
+  const pref = s => sig(-(s - 1.25) / 0.35);
+  function zoneOf(s, a, b, g) { return s < a ? 'dưới band: đẩy như GA' : (s <= b || g === 0 ? (s <= b ? 'trong band: áp lực bão hòa' : 'trên band: γ = 0 nên không kéo về') : 'trên band: kéo ngược về'); }
+  function drawPressure() {
+    const svg = $('#pressure');
+    svg.innerHTML = '';
+    el('rect', { x: px(P.a), y: pm.t, width: px(P.b) - px(P.a), height: PH - pm.b - pm.t, class: 'bandr' }, svg);
+    [-1, -0.5, 0, 0.5, 1].forEach(v => {
+      el('line', { x1: pm.l, x2: PW - pm.r, y1: py(v), y2: py(v), class: v === 0 ? 'axis0' : 'grid' }, svg);
+      txt(svg, pm.l - 8, py(v) + 4, v, 'tick', 'end');
+    });
+    for (let i = 0; i <= 7; i++) txt(svg, px(i / 2), PH - pm.b + 18, (i / 2).toString(), 'tick');
+    txt(svg, (pm.l + PW - pm.r) / 2, PH - 6, 'forget score sᵢ (NLL)', 'lab');
+    txt(svg, px(P.a), pm.t - 8, 'aᵢ', 'bandl');
+    txt(svg, px(P.b), pm.t - 8, 'bᵢ', 'bandl');
+    const path = f => { let d = ''; for (let i = 0; i <= 220; i++) { const s = 3.5 * i / 220; d += (i ? 'L' : 'M') + px(s).toFixed(1) + ',' + py(f(s)).toFixed(1); } return d; };
+    el('path', { d: path(() => 1), fill: 'none', style: 'stroke:var(--ga)', 'stroke-width': 2.5 }, svg);
+    el('path', { d: path(pref), fill: 'none', style: 'stroke:var(--pref)', 'stroke-width': 2, 'stroke-dasharray': '6 4' }, svg);
+    el('path', { d: path(h2df), fill: 'none', style: 'stroke:var(--h2df)', 'stroke-width': 3.5 }, svg);
+    const g = el('g', {}, svg);
+    el('line', { x1: px(P.s), x2: px(P.s), y1: pm.t, y2: PH - pm.b, style: 'stroke:var(--muted)', 'stroke-width': 1, 'stroke-dasharray': '2 3' }, g);
+    [[1, 'ga'], [pref(P.s), 'pref'], [h2df(P.s), 'h2df']].forEach(([v, c]) => el('circle', { cx: px(P.s), cy: py(v), r: 4.5, style: `fill:var(--${c});stroke:var(--surface)`, 'stroke-width': 1.5 }, g));
+    const hv = h2df(P.s);
+    $('#pressure-out').textContent = `sᵢ = ${P.s.toFixed(2)}  |  GA = 1.00  |  H2DF = ${hv.toFixed(2)}  |  ${zoneOf(P.s, P.a, P.b, P.gamma)}`;
+  }
+  function syncP() {
+    P.a = +$('#p-a').value; P.b = +$('#p-b').value; P.tau = +$('#p-t').value; P.gamma = +$('#p-g').value;
+    if (P.b < P.a + 0.1) { P.b = Math.min(3.2, P.a + 0.1); $('#p-b').value = P.b; }
+    $('#p-a-o').textContent = P.a.toFixed(2); $('#p-b-o').textContent = P.b.toFixed(2);
+    $('#p-t-o').textContent = P.tau.toFixed(2); $('#p-g-o').textContent = P.gamma.toFixed(2);
+    drawPressure();
+  }
+  ['#p-a', '#p-b', '#p-t', '#p-g'].forEach(id => $(id).addEventListener('input', syncP));
+  $('#pressure').addEventListener('pointermove', e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const vx = (e.clientX - r.left) / r.width * PW;
+    P.s = Math.max(0, Math.min(3.5, (vx - pm.l) / (PW - pm.l - pm.r) * 3.5));
+    drawPressure();
+  });
+  syncP();
+
+  /* ---------- 10-step simulation (Fig. 4 spirit) ---------- */
+  const S = { eta: 0.45, gamma: 0.5, t: 10, timer: null, ga: [], h: [] };
+  const SA = 1.4, SB = 2.2, ST = 0.25, SN = 10;
+  const SW = 640, SH = 300, sm = { l: 46, r: 16, t: 16, b: 42 };
+  const sx = lin(0, SN, sm.l, SW - sm.r), sy = lin(0, 6, SH - sm.b, sm.t);
+  function simCompute() {
+    S.ga = [0.4]; S.h = [0.4];
+    for (let t = 1; t <= SN; t++) {
+      S.ga.push(S.ga[t - 1] + S.eta);
+      const s = S.h[t - 1];
+      S.h.push(s + S.eta * (sig((SA - s) / ST) - S.gamma * sig((s - SB) / ST)));
+    }
+  }
+  function simDraw() {
+    const svg = $('#simsvg');
+    svg.innerHTML = '';
+    const defs = el('defs', {}, svg);
+    const cp = el('clipPath', { id: 'simclip' }, defs);
+    el('rect', { x: sm.l, y: sm.t, width: SW - sm.l - sm.r, height: SH - sm.t - sm.b }, cp);
+    el('rect', { x: sm.l, y: sy(SB), width: SW - sm.l - sm.r, height: sy(SA) - sy(SB), class: 'bandr' }, svg);
+    txt(svg, SW - sm.r - 6, sy(SB) + 15, 'calibrated target band', 'bandl', 'end');
+    for (let v = 0; v <= 6; v++) { el('line', { x1: sm.l, x2: SW - sm.r, y1: sy(v), y2: sy(v), class: 'grid' }, svg); txt(svg, sm.l - 8, sy(v) + 4, v, 'tick', 'end'); }
+    for (let t = 0; t <= SN; t++) txt(svg, sx(t), SH - sm.b + 18, t, 'tick');
+    txt(svg, (sm.l + SW - sm.r) / 2, SH - 6, 'bước update', 'lab');
+    const g = el('g', { 'clip-path': 'url(#simclip)' }, svg);
+    const pl = arr => arr.slice(0, S.t + 1).map((v, i) => sx(i).toFixed(1) + ',' + sy(v).toFixed(1)).join(' ');
+    el('polyline', { points: pl(S.ga), fill: 'none', style: 'stroke:var(--ga)', 'stroke-width': 2.5 }, g);
+    el('polyline', { points: pl(S.h), fill: 'none', style: 'stroke:var(--h2df)', 'stroke-width': 3.5 }, g);
+    for (let i = 0; i <= S.t; i++) {
+      el('circle', { cx: sx(i), cy: sy(S.ga[i]), r: 3, style: 'fill:var(--ga)' }, g);
+      el('circle', { cx: sx(i), cy: sy(S.h[i]), r: 3.5, style: 'fill:var(--h2df)' }, g);
+    }
+    const s = S.h[S.t], ga = S.ga[S.t];
+    const alpha = sig((SA - s) / ST) - S.gamma * sig((s - SB) / ST);
+    const zone = s < SA ? 'dưới band' : s <= SB ? 'trong band' : 'trên band';
+    $('#sim-out').textContent = `Bước ${S.t}  |  GA = ${ga.toFixed(2)}${ga > 6 ? ' (ra ngoài khung)' : ''}  |  H2DF = ${s.toFixed(2)} (${zone}, hệ số = ${alpha.toFixed(2)})`;
+  }
+  function simStop() { if (S.timer) { clearInterval(S.timer); S.timer = null; } $('#s-play').textContent = 'Chạy'; }
+  function simSync() { S.eta = +$('#s-eta').value; $('#s-eta-o').textContent = S.eta.toFixed(2); simCompute(); simDraw(); }
+  $('#s-eta').addEventListener('input', simSync);
+  function setGamma(g) { S.gamma = g; $('#s-g1').setAttribute('aria-pressed', g > 0); $('#s-g0').setAttribute('aria-pressed', g === 0); simCompute(); simDraw(); }
+  $('#s-g1').addEventListener('click', () => setGamma(0.5));
+  $('#s-g0').addEventListener('click', () => setGamma(0));
+  $('#s-play').addEventListener('click', () => {
+    if (S.timer) { simStop(); return; }
+    if (S.t >= SN) S.t = 0;
+    if (reduced) { S.t = SN; simDraw(); return; }
+    simDraw();
+    $('#s-play').textContent = 'Dừng';
+    S.timer = setInterval(() => { S.t++; simDraw(); if (S.t >= SN) simStop(); }, 480);
+  });
+  $('#s-step').addEventListener('click', () => { simStop(); S.t = S.t >= SN ? 0 : S.t + 1; simDraw(); });
+  $('#s-reset').addEventListener('click', () => { simStop(); S.t = 0; simDraw(); });
+  simSync();
+
+  /* ---------- TOFU (Table 1, Table 2, Fig. 5) ---------- */
+  const T42 = [
+    { k: 'Original', c: 'orig', fn: 1.004, ff: 0.441, rn: 0.997, rf: 0.446, lx: 10, ly: 4, a: 'start' },
+    { k: 'GA', c: 'ga', fn: 1.560, ff: 0.312, rn: 1.280, rf: 0.334, lx: 10, ly: -6, a: 'start' },
+    { k: 'NPO', c: 'pref', fn: 1.561, ff: 0.310, rn: 1.282, rf: 0.333, lx: 10, ly: 12, a: 'start' },
+    { k: 'SimNPO', c: 'simnpo', fn: 1.643, ff: 0.287, rn: 1.365, rf: 0.309, lx: 10, ly: 4, a: 'start' },
+    { k: 'GradDiff', c: 'gd', fn: 1.538, ff: 0.318, rn: 1.220, rf: 0.353, lx: -10, ly: 14, a: 'end' },
+    { k: 'H2DF', c: 'h2df', fn: 1.565, ff: 0.327, rn: 1.217, rf: 0.360, lx: -10, ly: -6, a: 'end' }
+  ];
+  const TM = [
+    { k: 'GA', c: 'ga', fn: 1.595, sfn: 0.196, ff: '0.310 ± 0.042', rn: 1.300, srn: 0.190, rf: '0.341 ± 0.054', lx: 10, ly: -8, a: 'start' },
+    { k: 'GradDiff', c: 'gd', fn: 1.499, sfn: 0.043, ff: '0.348 ± 0.026', rn: 1.162, srn: 0.051, rf: '0.389 ± 0.032', lx: -10, ly: 16, a: 'end' },
+    { k: 'H2DF', c: 'h2df', fn: 1.528, sfn: 0.049, ff: '0.353 ± 0.022', rn: 1.165, srn: 0.047, rf: '0.394 ± 0.029', lx: -10, ly: -8, a: 'end' }
+  ];
+  const TW = 640, TH = 340, tm = { l: 52, r: 20, t: 20, b: 44 };
+  const tx = lin(0.9, 1.55, tm.l, TW - tm.r), ty = lin(0.9, 1.85, TH - tm.b, tm.t);
+  let tMode = 'mean';
+  function tofuOut(d) {
+    const f = v => typeof v === 'number' ? v.toFixed(3) : v;
+    const fn = d.sfn ? `${d.fn.toFixed(3)} ± ${d.sfn.toFixed(3)}` : f(d.fn);
+    const rn = d.srn ? `${d.rn.toFixed(3)} ± ${d.srn.toFixed(3)}` : f(d.rn);
+    $('#tofu-out').textContent = `${d.k}  |  Forget NLL ${fn}  |  Forget F1 ${f(d.ff)}  |  Retain NLL ${rn}  |  Retain F1 ${f(d.rf)}`;
+  }
+  function drawTofu() {
+    const svg = $('#tofusvg');
+    svg.innerHTML = '';
+    for (let i = 0; i <= 6; i++) { const v = 0.9 + i * 0.1; el('line', { x1: tx(v), x2: tx(v), y1: tm.t, y2: TH - tm.b, class: 'grid' }, svg); txt(svg, tx(v), TH - tm.b + 18, v.toFixed(1)); }
+    for (let i = 0; i <= 4; i++) { const v = 1.0 + i * 0.2; el('line', { x1: tm.l, x2: TW - tm.r, y1: ty(v), y2: ty(v), class: 'grid' }, svg); txt(svg, tm.l - 8, ty(v) + 4, v.toFixed(1), 'tick', 'end'); }
+    txt(svg, (tm.l + TW - tm.r) / 2, TH - 6, 'Retain NLL ↓', 'lab');
+    const yl = txt(svg, 14, (tm.t + TH - tm.b) / 2, 'Forget NLL ↑', 'lab');
+    yl.setAttribute('transform', `rotate(-90 14 ${(tm.t + TH - tm.b) / 2})`);
+    txt(svg, tm.l + 10, tm.t + 14, '↖ tốt hơn', 'bandl', 'start');
+    const data = tMode === 'mean' ? TM : T42;
+    data.forEach(d => {
+      const cx = tx(d.rn), cy = ty(d.fn), col = `var(--${d.c})`;
+      const g = el('g', { tabindex: 0, role: 'button', 'aria-label': d.k }, svg);
+      if (d.sfn) {
+        el('line', { x1: tx(d.rn - d.srn), x2: tx(d.rn + d.srn), y1: cy, y2: cy, style: `stroke:${col}`, 'stroke-width': 1.5 }, g);
+        el('line', { x1: cx, x2: cx, y1: ty(d.fn - d.sfn), y2: ty(d.fn + d.sfn), style: `stroke:${col}`, 'stroke-width': 1.5 }, g);
+        [[tx(d.rn - d.srn), cy, 0], [tx(d.rn + d.srn), cy, 0], [cx, ty(d.fn - d.sfn), 1], [cx, ty(d.fn + d.sfn), 1]].forEach(([x, y, v]) =>
+          el('line', v ? { x1: x - 5, x2: x + 5, y1: y, y2: y, style: `stroke:${col}`, 'stroke-width': 1.5 } : { x1: x, x2: x, y1: y - 5, y2: y + 5, style: `stroke:${col}`, 'stroke-width': 1.5 }, g));
+      }
+      el('circle', { cx, cy, r: d.k === 'H2DF' ? 7 : 6, style: `fill:${col};stroke:var(--surface)`, 'stroke-width': 2 }, g);
+      el('circle', { cx, cy, r: 16, fill: 'transparent' }, g);
+      const lt = txt(g, cx + d.lx, cy + d.ly, d.k, 'lab', d.a);
+      lt.setAttribute('style', `fill:${col};font-weight:600`);
+      ['pointerenter', 'focus', 'click'].forEach(ev => g.addEventListener(ev, () => tofuOut(d)));
+    });
+    tofuOut(data.find(d => d.k === 'H2DF'));
+  }
+  function setTofu(m) { tMode = m; $('#t-mean').setAttribute('aria-pressed', m === 'mean'); $('#t-seed').setAttribute('aria-pressed', m === 'seed'); drawTofu(); }
+  $('#t-mean').addEventListener('click', () => setTofu('mean'));
+  $('#t-seed').addEventListener('click', () => setTofu('seed'));
+  drawTofu();
+  (function tofuTable() {
+    const un = T42.filter(d => d.k !== 'Original');
+    const best = { fn: Math.max(...un.map(d => d.fn)), ff: Math.min(...un.map(d => d.ff)), rn: Math.min(...un.map(d => d.rn)), rf: Math.max(...un.map(d => d.rf)) };
+    $('#tofu-table tbody').innerHTML = T42.map(d => `<tr class="${d.k === 'H2DF' ? 'me' : ''}"><td><span class="sw" style="background:var(--${d.c})"></span>${d.k}</td>` +
+      ['fn', 'ff', 'rn', 'rf'].map(m => `<td class="${d.k !== 'Original' && d[m] === best[m] ? 'best' : ''}">${d[m].toFixed(3)}</td>`).join('') + '</tr>').join('');
+  })();
+
+  /* ---------- MUSE internal diagnostics (Table 3) ---------- */
+  const MU = [
+    { k: 'Original', c: 'orig', f: 0.576, r: 0.761, auc: 0.981, band: 0.015 },
+    { k: 'GA', c: 'ga', f: 1.865, r: 2.018, auc: 0.934, band: 0.071 },
+    { k: 'NPO', c: 'pref', f: 1.858, r: 2.010, auc: 0.934, band: 0.072 },
+    { k: 'GradDiff', c: 'gd', f: 1.379, r: 1.546, auc: 0.961, band: 0.081 },
+    { k: 'SimNPO', c: 'simnpo', f: 1.513, r: 1.597, auc: 0.955, band: 0.144 },
+    { k: 'H2DF', c: 'h2df', f: 1.557, r: 1.666, auc: 0.949, band: 0.131 }
+  ];
+  const MM = {
+    r: { label: 'Retain NLL ↓', min: 0, max: 2.2, best: 'min', cap: 'Thấp hơn là giữ năng lực tốt hơn. Trong các method unlearning, GradDiff thấp nhất, H2DF thấp hơn GA và NPO khoảng 0.35.' },
+    f: { label: 'Forget NLL', min: 0, max: 2.2, best: null, cap: 'Paper không đặt mũi tên cho cột này: mục tiêu là đưa loss về vùng non-member, không phải đẩy càng cao càng tốt.' },
+    auc: { label: 'MIA AUC ↓', min: 0.5, max: 1.0, best: 'min', cap: 'Trục bắt đầu ở 0.5 (mức đoán ngẫu nhiên), không phải 0. Paper xem AUC là chỉ số chẩn đoán, không thay cho bộ metric chính thức.' },
+    band: { label: 'Band fraction ↑', min: 0, max: 1, best: 'max', cap: 'Trục 0 đến 100%. Tối đa chỉ 14.4% ví dụ nằm trong band, kể cả với H2DF.' }
+  };
+  let mKey = 'r';
+  const tabs = $('#muse-tabs');
+  Object.keys(MM).forEach(k => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = MM[k].label; b.dataset.k = k;
+    b.addEventListener('click', () => { mKey = k; drawMuse(); });
+    tabs.appendChild(b);
+  });
+  function drawMuse() {
+    const m = MM[mKey];
+    tabs.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === mKey));
+    const un = MU.filter(d => d.k !== 'Original').map(d => d[mKey]);
+    const bv = m.best === 'min' ? Math.min(...un) : m.best === 'max' ? Math.max(...un) : null;
+    $('#muse-bars').innerHTML = MU.map(d => {
+      const w = Math.max(0, Math.min(1, (d[mKey] - m.min) / (m.max - m.min))) * 100;
+      const best = d.k !== 'Original' && d[mKey] === bv;
+      const v = mKey === 'band' ? (d[mKey] * 100).toFixed(1) + '%' : d[mKey].toFixed(3);
+      return `<div class="brow${best ? ' best' : ''}"><span class="nm" style="${d.k === 'H2DF' ? 'color:var(--accent);font-weight:700' : ''}">${d.k}</span><div class="tr"><div class="fl" style="width:${w}%;background:var(--${d.c})"></div></div><span class="vl">${v}</span></div>`;
+    }).join('');
+    $('#muse-cap').textContent = m.cap;
+  }
+  drawMuse();
+
+  /* ---------- Ablations (Table 5, Fig. 6) ---------- */
+  const AB = [
+    { k: 'Two-sided · step 40', b: 0.575, i: 0.125, a: 0.300, r: 1.598 },
+    { k: 'Two-sided · step 50 (cuối)', b: 0.280, i: 0.160, a: 0.560, r: 1.852 },
+    { k: 'Lower-only · step 40', b: 0.435, i: 0.095, a: 0.470, r: 1.790 },
+    { k: 'Lower-only · step 50 (cuối)', b: 0.125, i: 0.080, a: 0.795, r: 2.171 },
+    { k: 'Two-sided + retain · step 50', b: 0.905, i: 0.020, a: 0.075, r: 1.195 }
+  ];
+  const pct = v => (v * 100).toFixed(v * 100 % 1 ? 1 : 0) + '%';
+  $('#abl').innerHTML = '<div class="srow" style="color:var(--muted);font-size:12px;font-family:var(--mono)"><span class="nm">Biến thể</span><span></span><span class="vl" style="color:var(--muted)">Retain NLL</span></div>' + AB.map(d =>
+    `<div class="srow"><span class="nm">${d.k}</span><div class="stk" title="Dưới ${pct(d.b)}, trong ${pct(d.i)}, trên ${pct(d.a)}">` +
+    `<div class="sb" style="flex-basis:${d.b * 100}%">${d.b >= 0.09 ? pct(d.b) : ''}</div><div class="si" style="flex-basis:${d.i * 100}%">${d.i >= 0.09 ? pct(d.i) : ''}</div><div class="sa" style="flex-basis:${d.a * 100}%">${d.a >= 0.09 ? pct(d.a) : ''}</div>` +
+    `</div><span class="vl">${d.r.toFixed(3)}</span></div>`).join('');
+
+  /* ---------- Cost strips (§5) ---------- */
+  const CO = [
+    { k: 'GA', f: 10, r: 0 },
+    { k: 'SimNPO', f: 10, r: 0 },
+    { k: 'NPO', f: 10, r: 0, x: '+ loss tham chiếu (lưu sẵn hoặc tính thêm)' },
+    { k: 'GradDiff', f: 10, r: 10 },
+    { k: 'H2DF (MUSE)', f: 10, r: 0, cal: true },
+    { k: 'H2DF (TOFU)', f: 10, r: 1, cal: true }
+  ];
+  $('#cost').innerHTML = CO.map(d => `<div class="crow"><span style="${d.k.startsWith('H2DF') ? 'color:var(--accent);font-weight:700' : 'font-weight:500'}">${d.k}</span><div class="strip">` +
+    '<i class="f"></i>'.repeat(d.f) + (d.r ? '<span style="width:8px"></span>' + '<i class="r"></i>'.repeat(d.r) : '') +
+    (d.cal ? '<span class="cal">+ calibration 1 lần</span>' : '') + (d.x ? `<span class="x">${d.x}</span>` : '') + '</div></div>').join('');
+
+  /* ---------- DKW calculator (Eq. 8) ---------- */
+  function dkw() {
+    const n = +$('#d-n').value, d = +$('#d-d').value;
+    $('#d-n-o').textContent = n;
+    const eps = Math.sqrt(Math.log(2 / d) / (2 * n));
+    const need = Math.ceil(Math.log(2 / d) / (2 * 0.05 * 0.05));
+    $('#dkw-out').textContent = `ε = ${eps.toFixed(3)}: với xác suất ≥ ${(1 - d).toFixed(2)}, quantile ρ = 0.7 thực sự nằm đâu đó trong khoảng ${Math.max(0, 0.7 - eps).toFixed(2)} đến ${Math.min(1, 0.7 + eps).toFixed(2)}. Muốn ε ≤ 0.05 cần n ≥ ${need}.`;
+  }
+  $('#d-n').addEventListener('input', dkw);
+  $('#d-d').addEventListener('change', dkw);
+  dkw();
+
+  /* ---------- Talk script ---------- */
+  const TALK = [
+    ['Vì sao cần unlearning', '1:00', 'problem', 'Can we make an LLM forget specific data without retraining from scratch?', 'Dữ liệu riêng tư, bản quyền; train lại quá đắt; forget set và retain set.'],
+    ['GA và hướng đẩy vô tận', '1:30', 'problem', 'Gradient ascent never knows when to stop.', 'Eq. 1, ba lỗi của GA, timeline Fig. 2.'],
+    ['Ý tưởng: target band', '2:00', 'idea', 'Forgetting should be a calibrated region, not an infinite direction.', 'Demo biểu đồ áp lực: kéo γ về 0 rồi lên 0.5.'],
+    ['Objective và hệ số α', '1:30', 'math', 'Same cost per step as GA. A coefficient that turns itself off.', 'Chỉ giải thích Eq. 3 bằng màu và Eq. 4.'],
+    ['Calibration từ non-member', '1:00', 'workflow', 'Targets come from non-member data, computed once before training.', 'Ba pha: calibration, unlearning, chọn checkpoint.'],
+    ['Ví dụ một câu trả lời', '0:45', 'sim', 'GA keeps climbing. H2DF settles in the band.', 'Bấm Chạy trên mô phỏng 10 bước.'],
+    ['Thiết lập thí nghiệm', '0:45', 'setup', 'Two benchmarks, same LoRA budget for every method.', 'TOFU (Qwen2.5-1.5B) và MUSE-News; 5 baseline.'],
+    ['Kết quả TOFU', '1:15', 'tofu', 'Matches GradDiff with retain replay only every tenth step.', 'Biểu đồ 3 seed: error bar của GA rất rộng.'],
+    ['Kết quả MUSE-News', '1:15', 'muse', 'Competitive with SimNPO, not dominant.', 'Tab Retain NLL, rồi bảng official.'],
+    ['Ablation', '1:00', 'ablation', 'The upper target and the checkpoint rule matter as much as the lower target.', 'So sánh step 40 với step 50 cuối.'],
+    ['Giới hạn và kết luận', '1:00', 'limits', 'A mechanism for controllable forgetting, not a guarantee of data removal.', 'Bốn giới hạn, câu kết của paper.']
+  ];
+  $('#talk-list').innerHTML = TALK.map((s, i) => `<div class="slide"><span class="no">${String(i + 1).padStart(2, '0')}</span><div><div class="tt">${s[0]}</div><div class="ln">"${s[3]}"</div><div class="sh">${s[4]} <a href="#${s[2]}">Mở phần này</a></div></div><span class="tm">${s[1]}</span></div>`).join('');
+
+  /* ---------- Q&A ---------- */
+  const QA = [
+    ['H2DF khác gì NPO và SimNPO?', 'NPO và SimNPO giảm áp lực một cách ngầm qua hàm kiểu preference. H2DF đặt vùng dừng tường minh, lấy từ dữ liệu non-member, và có thể đẩy ngược khi vượt b. Paper xem H2DF bổ sung, không thay thế.'],
+    ['Vì sao calibrate bằng dữ liệu non-member?', 'Mục tiêu là model hành xử như chưa từng thấy dữ liệu. Loss trên dữ liệu tương tự mà model chưa học chính là mức đó. Đẩy loss cao hơn nhiều lại thành dấu hiệu bất thường.'],
+    ['Có bảo đảm dữ liệu bị xóa thật không?', 'Không. Paper nói rõ target dựa trên loss là proxy, không phải certified unlearning. Kết quả MUSE cho thấy chẩn đoán loss không quyết định VerbMem, KnowMem hay PrivLeak.'],
+    ['Chi phí so với GA?', 'Mỗi bước giống GA: 1 forward/backward trên forget batch. Phần thêm là calibration 1 lần trước khi train. Bản TOFU thêm retain batch mỗi 10 bước, GradDiff thì mọi bước.'],
+    ['Có thắng SimNPO không?', 'Không. Trên MUSE-News, SimNPO tốt hơn về retain NLL, band fraction và VerbMem. H2DF tốt hơn chút về KnowMem-Retain và MIA AUC. Chỉ có seed 42.'],
+    ['Vì sao lower-only vẫn overshoot dù α về 0?', 'Paper: hệ số bị chặn nhưng Jacobian ∇θ s không bị chặn. Cách mình hiểu: các ví dụ dùng chung tham số LoRA, nên update cho ví dụ chưa đạt target vẫn đẩy loss của ví dụ đã đạt. Nên trả lời phần sau là suy luận.'],
+    ['Kết quả có ổn định qua seed không?', 'TOFU: H2DF ổn định (SD 0.049), GA thì không (SD 0.196). MUSE: seed 43 để 93% ví dụ còn dưới target sau 50 bước. Tác giả tự nhận nhạy với seed.'],
+    ['Áp dụng cho model lớn được không?', 'Chưa được kiểm chứng. Thí nghiệm dùng Qwen2.5-1.5B và MUSE-News target (tokenizer Llama-2-7B). Chưa có MUSE-Books, yêu cầu quên tuần tự, hay model lớn hơn.'],
+    ['H2DF là viết tắt của gì?', 'Paper không giải thích tên. Trả lời thẳng là không rõ, thay vì đoán.']
+  ];
+  $('#qa-list').innerHTML = QA.map(q => `<div class="card"><p class="q">${q[0]}</p><p class="a">${q[1]}</p></div>`).join('');
+
+  /* ---------- Glossary ---------- */
+  const GL = [
+    ['Machine unlearning', 'Gỡ ảnh hưởng của dữ liệu chọn trước khỏi model, không train lại từ đầu.'],
+    ['Forget set / retain set', 'Dữ liệu cần quên / dữ liệu phải giữ năng lực.'],
+    ['Non-member', 'Dữ liệu model chưa từng train, dùng làm mốc "chưa thấy".'],
+    ['NLL', 'Negative log-likelihood, loss trung bình theo token. Cao = model ít tin vào văn bản đó.'],
+    ['GA', 'Gradient ascent: tăng loss trên forget set.'],
+    ['GradDiff', 'GA + loss giữ năng lực trên retain set mỗi bước.'],
+    ['NPO / SimNPO', 'Objective kiểu preference cho unlearning; SimNPO bỏ model tham chiếu.'],
+    ['RMU', 'Phương pháp điều hướng biểu diễn ẩn; bị loại khỏi so sánh chính.'],
+    ['LoRA', 'Fine-tune bằng ma trận hạng thấp; paper dùng rank 8.'],
+    ['Quantile Q_ρ', 'Giá trị mà ρ phần mẫu nằm dưới nó.'],
+    ['Softplus h_τ', 'Phiên bản trơn của max(0, u).'],
+    ['σ (sigmoid)', 'Hàm nén về khoảng 0 đến 1; tạo hệ số α.'],
+    ['Overshoot', 'Loss vượt quá upper target b.'],
+    ['Band fraction', 'Tỉ lệ ví dụ forget nằm trong [a, b].'],
+    ['MIA AUC', 'Khả năng tấn công membership inference phân biệt dữ liệu đã train dựa trên loss.'],
+    ['TOFU', 'Benchmark hỏi đáp về tác giả hư cấu.'],
+    ['MUSE', 'Benchmark 6 chiều: VerbMem, KnowMem, PrivLeak, utility, scale, sustainability.'],
+    ['VerbMem / KnowMem', 'Ghi nhớ nguyên văn / ghi nhớ kiến thức.'],
+    ['PrivLeak', 'Chỉ số rò rỉ privacy của MUSE; paper giữ quy ước dấu và không xếp hạng.'],
+    ['DKW', 'Bất đẳng thức chặn sai số giữa CDF thực nghiệm và CDF thật.']
+  ];
+  $('#gloss').innerHTML = GL.map(g => `<div class="gl"><b>${g[0]}</b>${g[1]}</div>`).join('');
+
+  /* ---------- Active nav link ---------- */
+  try {
+    const links = [...document.querySelectorAll('#nav a')];
+    const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+    const io = new IntersectionObserver(es => {
+      es.forEach(e => {
+        if (!e.isIntersecting) return;
+        links.forEach(a => a.classList.remove('on'));
+        const a = map.get(e.target.id);
+        if (a) {
+          a.classList.add('on');
+          const nav = a.parentElement;
+          if (a.offsetLeft < nav.scrollLeft || a.offsetLeft + a.offsetWidth > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = a.offsetLeft - 24;
+        }
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    document.querySelectorAll('section[id]').forEach(s => io.observe(s));
+  } catch (e) { /* nav highlight is optional */ }
+})();
+</script>
+
