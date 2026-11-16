@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terraform thực chiến - cấu trúc repo và pipeline</title>
+<meta name="description" content="Cấu trúc repo Terraform, state, module, quy trình apply và pipeline CI/CD thực chiến, kèm sơ đồ AWS của pipeline.">
+<style>
+:root{
+  --bg:#f6f5fa;--panel:#ffffff;--ink:#1d1b2e;--muted:#5f5b78;--line:#dcd8ea;
+  --brand:#6d3fc0;--brand-soft:#efe8fb;--teal:#0e8f7e;--teal-soft:#e2f5f1;
+  --warn:#b45309;--warn-soft:#fdf1df;--bad:#be123c;--bad-soft:#fde8ee;--ok:#15803d;--ok-soft:#e3f5e9;
+  --code-bg:#1e1b2e;--code-ink:#ece8fa;--code-dim:#9a94b8;
+  --shadow:0 1px 2px rgba(29,27,46,.06),0 6px 18px rgba(29,27,46,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14121f;--panel:#1c1a2b;--ink:#ece8fa;--muted:#a49fc0;--line:#322e4a;
+    --brand:#b79cf0;--brand-soft:#2a2342;--teal:#4cc9b4;--teal-soft:#16302d;
+    --warn:#f0b35c;--warn-soft:#33281a;--bad:#ff8fa8;--bad-soft:#3a1c26;--ok:#6fd58f;--ok-soft:#173222;
+    --code-bg:#0e0c18;--code-ink:#ece8fa;--code-dim:#8680a8;--shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14121f;--panel:#1c1a2b;--ink:#ece8fa;--muted:#a49fc0;--line:#322e4a;
+  --brand:#b79cf0;--brand-soft:#2a2342;--teal:#4cc9b4;--teal-soft:#16302d;
+  --warn:#f0b35c;--warn-soft:#33281a;--bad:#ff8fa8;--bad-soft:#3a1c26;--ok:#6fd58f;--ok-soft:#173222;
+  --code-bg:#0e0c18;--code-ink:#ece8fa;--code-dim:#8680a8;--shadow:none;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:20px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+.layout{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:100vh}
+nav.toc{position:sticky;top:0;height:100vh;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:22px 16px 40px}
+nav.toc .brand{font-weight:700;font-size:15px;line-height:1.3;margin:0 8px 4px}
+nav.toc .sub{font-size:12.5px;color:var(--muted);margin:0 8px 16px}
+nav.toc{counter-reset:s}nav.toc ol{list-style:none;margin:0;padding:0}
+nav.toc li{counter-increment:s}
+nav.toc a{display:flex;gap:8px;padding:6px 8px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:14px;line-height:1.35}
+nav.toc a::before{content:counter(s);flex:0 0 22px;height:22px;border-radius:6px;background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:700;display:grid;place-items:center;margin-top:1px}
+nav.toc a:hover{background:var(--brand-soft);color:var(--ink)}
+nav.toc a.on{background:var(--brand-soft);color:var(--ink);font-weight:600}
+nav.toc .group{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:16px 8px 4px}
+.toc-tools{display:flex;gap:8px;margin:0 8px 14px}
+button.chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:4px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+button.chip:hover{border-color:var(--brand)}
+main{padding:34px clamp(18px,4vw,56px) 80px;max-width:1080px;width:100%}
+.hero{background:linear-gradient(135deg,var(--brand-soft),var(--teal-soft));border:1px solid var(--line);border-radius:18px;padding:28px 30px;margin-bottom:28px}
+.hero h1{margin:0 0 8px;font-size:clamp(26px,3.4vw,36px);line-height:1.2;letter-spacing:-.01em}
+.hero p{margin:0;color:var(--muted);max-width:70ch}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.tag{font-size:12.5px;padding:3px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+section{margin:0 0 46px}
+section>h2{font-size:25px;line-height:1.25;margin:0 0 6px;display:flex;align-items:center;gap:12px}
+section>h2 .num{flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:16px}
+section>.lead{color:var(--muted);margin:0 0 18px}
+h3{font-size:18px;margin:26px 0 8px}
+h4{font-size:15px;margin:18px 0 6px;color:var(--brand)}
+p{margin:0 0 12px}
+ul,ol.plain{margin:0 0 14px;padding-left:22px}
+li{margin:4px 0}
+code{font-family:Consolas,"Cascadia Mono",Menlo,monospace;font-size:.9em;background:var(--brand-soft);color:var(--brand);padding:1px 6px;border-radius:5px}
+pre{background:var(--code-bg);color:var(--code-ink);border-radius:12px;padding:14px 16px;overflow:auto;font:13.5px/1.55 Consolas,"Cascadia Mono",Menlo,monospace;margin:0 0 16px;position:relative}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+pre .c{color:var(--code-dim)}
+pre .k{color:#c3a6ff}
+pre .s{color:#7fe0c9}
+pre .ptitle{display:block;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--code-dim);margin-bottom:8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0 0 16px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 16px}
+.card h4{margin-top:0}
+.callout{border-radius:12px;padding:12px 16px;margin:0 0 16px;border:1px solid;display:flex;gap:12px}
+.callout b.ic{flex:0 0 auto;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px;color:#fff;margin-top:2px}
+.callout.rule{background:var(--brand-soft);border-color:var(--brand)}.callout.rule b.ic{background:var(--brand)}
+.callout.warn{background:var(--warn-soft);border-color:var(--warn)}.callout.warn b.ic{background:var(--warn)}
+.callout.bad{background:var(--bad-soft);border-color:var(--bad)}.callout.bad b.ic{background:var(--bad)}
+.callout.ok{background:var(--ok-soft);border-color:var(--ok)}.callout.ok b.ic{background:var(--ok)}
+.callout p{margin:0}.callout .ttl{font-weight:700;display:block;margin-bottom:2px}
+table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:14.5px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:block;overflow-x:auto}
+thead th{background:var(--brand-soft);text-align:left;font-weight:700}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td code,th code{white-space:nowrap}
+.fig{margin:0 0 18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.fig svg{width:100%;height:auto;display:block}
+.fig figcaption{font-size:13px;color:var(--muted);margin-top:8px}
+.tabs{border:1px solid var(--line);border-radius:14px;background:var(--panel);margin:0 0 16px;overflow:hidden}
+.tabbar{display:flex;flex-wrap:wrap;gap:4px;padding:8px;background:var(--brand-soft);border-bottom:1px solid var(--line)}
+.tabbar button{border:0;background:transparent;color:var(--muted);padding:6px 12px;border-radius:8px;font:inherit;font-size:14px;cursor:pointer}
+.tabbar button[aria-selected="true"]{background:var(--panel);color:var(--brand);font-weight:700;box-shadow:var(--shadow)}
+.tabpane{padding:14px 18px;display:none}.tabpane.on{display:block}
+.tabpane pre{margin-top:6px}
+details{border:1px solid var(--line);border-radius:12px;background:var(--panel);margin:0 0 10px}
+summary{cursor:pointer;padding:11px 16px;font-weight:600;list-style:none;display:flex;gap:10px;align-items:center}
+summary::before{content:"+";flex:0 0 22px;height:22px;border-radius:6px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-weight:700}
+details[open] summary::before{content:"-"}
+details .body{padding:0 16px 12px}
+.tree{font:13.5px/1.7 Consolas,"Cascadia Mono",Menlo,monospace}
+.tree .d{color:#c3a6ff}.tree .n{color:var(--code-dim)}
+.badge{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px;vertical-align:middle}
+.badge.git{background:var(--ok-soft);color:var(--ok)}.badge.ign{background:var(--bad-soft);color:var(--bad)}.badge.gen{background:var(--warn-soft);color:var(--warn)}
+iframe.diagram{width:100%;height:1060px;border:1px solid var(--line);border-radius:14px;background:#fff;margin:0 0 6px}
+.check li{list-style:none;margin-left:-22px}
+.check li::before{content:"\2610";margin-right:8px;color:var(--brand)}
+.mobilebar{display:none}
+@media (max-width:980px){
+  .layout{grid-template-columns:1fr}
+  nav.toc{position:fixed;inset:0 auto 0 0;width:min(86vw,320px);transform:translateX(-102%);transition:transform .2s;z-index:20;box-shadow:var(--shadow)}
+  body.navopen nav.toc{transform:none}
+  .mobilebar{display:flex;position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line);padding:8px 16px;gap:10px;align-items:center}
+  .grid2,.grid3{grid-template-columns:1fr}
+  iframe.diagram{height:900px}
+}
+@media print{nav.toc,.mobilebar{display:none}.layout{display:block}}
+</style>
+</head>
+<body>
+<div class="mobilebar"><button class="chip" id="navbtn" aria-label="Mở mục lục">Mục lục</button><strong>Terraform thực chiến</strong></div>
+<div class="layout">
+<nav class="toc" aria-label="Mục lục">
+  <p class="brand">Terraform thực chiến</p>
+  <p class="sub">Cấu trúc repo, quy trình phát triển, pipeline CI/CD</p>
+  <div class="toc-tools"><button class="chip" id="theme">Sáng / Tối</button><button class="chip" id="expand">Mở hết</button></div>
+  <div class="group">Foundations</div>
+  <ol>
+    <li><a href="#mo-hinh">Mô hình tư duy</a></li>
+    <li><a href="#cau-truc-repo">Cấu trúc repo</a></li>
+    <li><a href="#file-trong-root">Các file trong một root</a></li>
+    <li><a href="#state-backend">State và backend</a></li>
+    <li><a href="#bootstrap">Bootstrap</a></li>
+  </ol>
+  <div class="group">Coding</div>
+  <ol start="6">
+    <li><a href="#bien-tfvars">Variable, tfvars và secret</a></li>
+    <li><a href="#lock-version">Lock file và version</a></li>
+    <li><a href="#module">Module</a></li>
+    <li><a href="#provider-guard">Provider và account guard</a></li>
+    <li><a href="#import-moved">Import và moved</a></li>
+    <li><a href="#kiem-thu">Testing</a></li>
+  </ol>
+  <div class="group">Operations</div>
+  <ol start="12">
+    <li><a href="#quy-trinh">Quy trình hằng ngày</a></li>
+    <li><a href="#apply">Apply và sự cố</a></li>
+    <li><a href="#pipeline">Pipeline CI/CD</a></li>
+    <li><a href="#chinh-sach">Scan chính sách và risk</a></li>
+    <li><a href="#bai-hoc">Bài học thực chiến</a></li>
+    <li><a href="#checklist">Checklist và bài tập</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <h1>Terraform thực chiến: cấu trúc repo, quy trình phát triển và pipeline</h1>
+  <p>Tài liệu đào tạo nội bộ, rút ra từ việc vận hành hai repo Terraform thật trên AWS. Chỉ giữ phần kiến thức lõi: tổ chức repo, state, bootstrap, viết code, testing, apply và pipeline GitLab CI. Mọi tên dự án, account, bucket, tên miền và người đã được thay bằng ký hiệu chung.</p>
+  <div class="tags"><span class="tag">Terraform 1.10+</span><span class="tag">AWS provider</span><span class="tag">S3 backend</span><span class="tag">GitLab CI</span><span class="tag">Trivy / Checkov / Conftest</span></div>
+</header>
+
+<div class="callout rule"><b class="ic">i</b><div><span class="ttl">Cách đọc</span><p>Mỗi phần có thể đọc riêng. Khung màu tím là quy tắc nên theo, khung vàng là điểm dễ sai, khung đỏ là điều không được làm. Phần cuối có checklist và bài tập để tự kiểm tra.</p></div></div>
+
+<!-- 1 -->
+<section id="mo-hinh">
+<h2><span class="num">1</span>Mô hình tư duy: bốn nơi và một vòng lặp</h2>
+<p class="lead">Mọi lỗi Terraform khó hiểu đều quy về việc nhầm lẫn giữa bốn nơi dưới đây.</p>
+<figure class="fig">
+<svg viewBox="0 -24 900 254" role="img" aria-label="Bốn nơi: code config, plan, state, infrastructure thật. Plan so sánh code với state và infrastructure thật, apply ghi vào infrastructure thật rồi cập nhật state.">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+  <g font-family="Segoe UI,system-ui,sans-serif" font-size="14">
+    <rect x="10" y="50" width="190" height="110" rx="14" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="2"/>
+    <text x="105" y="84" text-anchor="middle" font-weight="700" fill="var(--ink)">Configuration</text>
+    <text x="105" y="106" text-anchor="middle" fill="var(--muted)">*.tf, tfvars</text>
+    <text x="105" y="130" text-anchor="middle" fill="var(--muted)">what you WANT</text>
+    <rect x="255" y="50" width="190" height="110" rx="14" fill="var(--panel)" stroke="var(--line)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="350" y="84" text-anchor="middle" font-weight="700" fill="var(--ink)">Plan</text>
+    <text x="350" y="106" text-anchor="middle" fill="var(--muted)">change plan</text>
+    <text x="350" y="130" text-anchor="middle" fill="var(--muted)">can be saved as a file</text>
+    <rect x="500" y="50" width="190" height="110" rx="14" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="2"/>
+    <text x="595" y="84" text-anchor="middle" font-weight="700" fill="var(--ink)">State</text>
+    <text x="595" y="106" text-anchor="middle" fill="var(--muted)">terraform.tfstate</text>
+    <text x="595" y="130" text-anchor="middle" fill="var(--muted)">what Terraform REMEMBERS</text>
+    <rect x="715" y="50" width="175" height="110" rx="14" fill="var(--warn-soft)" stroke="var(--warn)" stroke-width="2"/>
+    <text x="802" y="84" text-anchor="middle" font-weight="700" fill="var(--ink)">Real infrastructure</text>
+    <text x="802" y="106" text-anchor="middle" fill="var(--muted)">AWS resources</text>
+    <text x="802" y="130" text-anchor="middle" fill="var(--muted)">what EXISTS</text>
+    <path d="M200 105H253" stroke="var(--muted)" stroke-width="2" marker-end="url(#ar)"/>
+    <path d="M500 105H447" stroke="var(--muted)" stroke-width="2" marker-end="url(#ar)"/>
+    <path d="M715 150C690 195 560 195 540 162" fill="none" stroke="var(--muted)" stroke-width="2" marker-end="url(#ar)"/>
+    <text x="627" y="212" text-anchor="middle" fill="var(--muted)" font-size="12.5">refresh: đọc lại thực tế</text>
+    <text x="226" y="96" text-anchor="middle" fill="var(--muted)" font-size="12">đọc</text>
+    <text x="473" y="96" text-anchor="middle" fill="var(--muted)" font-size="12">so</text>
+    <path d="M350 50C350 12 780 12 802 48" fill="none" stroke="var(--brand)" stroke-width="2.4" marker-end="url(#ar)"/>
+    <text x="580" y="-6" text-anchor="middle" fill="var(--brand)" font-weight="700" font-size="13">apply: sửa infrastructure, rồi ghi lại state</text>
+  </g>
+</svg>
+<figcaption>Hình 1. Plan so ba nguồn: code, state và thực tế. Apply chỉ nên chạy đúng bản plan đã được đọc.</figcaption>
+</figure>
+<ul>
+<li><strong>Code</strong> là trạng thái mong muốn, nằm trong Git, ai cũng đọc được.</li>
+<li><strong>State</strong> là sổ ghi mỗi địa chỉ resource (ví dụ <code>module.edge.aws_lb.alb</code>) tương ứng với ID thật nào. Mất state thì Terraform "quên" resource và sẽ tạo trùng.</li>
+<li><strong>Plan</strong> là phép so sánh. Một plan xấu (delete nhầm, replace database) phải bị bắt ở bước này, không phải sau apply.</li>
+<li><strong>Apply</strong> chỉ có nghĩa khi áp dụng đúng plan đã duyệt. Nếu state đổi giữa chừng, plan lưu sẽ bị từ chối là "stale", đó là hành vi đúng.</li>
+</ul>
+<div class="callout rule"><b class="ic">!</b><div><span class="ttl">Hệ quả thiết kế</span><p>Vì state là nguồn sự thật của Terraform, nó phải nằm ở nơi chung, có lock, có version và có kiểm soát access. Toàn bộ phần repo, bootstrap và pipeline phía sau đều xoay quanh việc bảo vệ ba thứ: state, identity chạy Terraform, và bản plan.</p></div></div>
+</section>
+
+<!-- 2 -->
+<section id="cau-truc-repo">
+<h2><span class="num">2</span>Cấu trúc repo</h2>
+<p class="lead">Hai directory chính: <code>modules/</code> chứa phần dùng chung, <code>environments/</code> chứa nơi thật sự có state.</p>
+<h3>Cây directory tham chiếu</h3>
+<pre class="tree"><code><span class="d">terraform/</span>
+├── <span class="d">modules/</span>                    <span class="n"># building block, KHÔNG có state riêng</span>
+│   ├── <span class="d">networking/</span>             <span class="n"># mỗi module: main, variables, outputs, locals</span>
+│   ├── <span class="d">data/</span>
+│   ├── <span class="d">compute/</span>
+│   └── <span class="d">edge/</span>
+├── <span class="d">environments/</span>                <span class="n"># mỗi root = một state = một đơn vị triển khai</span>
+│   ├── <span class="d">poc/</span>                     <span class="n"># environment thử nghiệm, account riêng</span>
+│   └── <span class="d">uat/</span>
+│       ├── <span class="d">&lt;stack-a&gt;/</span>
+│       │   ├── <span class="d">bootstrap/</span>        <span class="n"># tạo bucket state (chạy một lần)</span>
+│       │   └── <span class="d">resource/</span>         <span class="n"># infrastructure thật, dùng bucket ở trên</span>
+│       └── <span class="d">&lt;stack-b&gt;/</span>
+│           ├── <span class="d">bootstrap/</span>
+│           └── <span class="d">resource/</span>
+└── <span class="d">archive/</span>                     <span class="n"># code cũ, không được CI scan hay chạy</span></code></pre>
+
+<div class="grid2">
+<div class="card"><h4>Root (directory trong environments)</h4>
+<p>Là nơi chạy <code>terraform init/plan/apply</code>. Mỗi root có đúng một backend, một file state, một key. Root chỉ <em>ghép</em> các module và truyền variable, không nên tự định nghĩa hàng chục resource thô.</p></div>
+<div class="card"><h4>Module (directory trong modules)</h4>
+<p>Là hàm có input (<code>variables.tf</code>) và output (<code>outputs.tf</code>). Module không có backend, không tạo provider, không đọc state của module khác. Mọi thứ nó cần phải được truyền vào.</p></div>
+</div>
+
+<h3>Vì sao tách bootstrap và resource</h3>
+<p>Bucket chứa state không thể nằm trong state của chính nó khi chưa tồn tại. Tách thành hai root giải được "con gà - quả trứng" và còn cho ba lợi ích: root bootstrap rất nhỏ nên risk thấp, hai root có chu kỳ thay đổi khác nhau, và bucket state có thể được bảo vệ riêng (chặn delete). Chi tiết ở mục 5.</p>
+
+<h3>Quy tắc tổ chức</h3>
+<table>
+<thead><tr><th>Quy tắc</th><th>Lý do</th><th>Nếu bỏ qua</th></tr></thead>
+<tbody>
+<tr><td>Một root = một state = một private key trong bucket</td><td>Giới hạn phạm vi ảnh hưởng, plan nhanh, mỗi nhóm sở hữu rõ ràng</td><td>Một state khổng lồ, plan chậm, một lỗi chặn mọi thay đổi khác</td></tr>
+<tr><td>Mỗi environment có account và bucket state riêng</td><td>Lộ key của environment thấp không đọc được state environment cao</td><td>Một credential sai có thể overwrite state của environment khác</td></tr>
+<tr><td>Module đặt tên theo vai trò, ghi rõ nó sẽ không phục vụ gì (README)</td><td>Tên chung chung gợi ý tái sử dụng mà module thực tế từ chối</td><td>Người khác dùng lại rồi mở rộng module cho cả hai hình dạng, mọi thay đổi sau đó kéo theo mọi environment</td></tr>
+<tr><td>Module tham chiếu bằng path tương đối (<code>../../modules/x</code>)</td><td>Một commit là một version hoàn chỉnh, dễ review</td><td>Tách module sang repo khác quá sớm làm mỗi thay đổi thành hai merge request</td></tr>
+<tr><td>Code cũ để trong <code>archive/</code>, không để lẫn</td><td>Pipeline và scanner chỉ nên scan thứ thật sự được triển khai</td><td>Scanner đỏ vì code đã bỏ, người ta tắt gate kiểm tra</td></tr>
+</tbody></table>
+
+<div class="callout warn"><b class="ic">!</b><div><span class="ttl">Chuyển resource vào module thì địa chỉ state đổi</span><p>Đưa một resource vào module làm đổi địa chỉ, Terraform hiểu là "delete rồi tạo lại". Khi chưa apply lần nào việc tái cấu trúc này miễn phí. Sau apply đầu tiên mỗi địa chỉ cần một <code>moved</code> block (mục 9) và plan phải được đọc từng dòng. Vì vậy hãy quyết định ranh giới module trước khi infrastructure tồn tại.</p></div></div>
+</section>
+
+<!-- 3 -->
+<section id="file-trong-root">
+<h2><span class="num">3</span>Các file trong một root</h2>
+<p class="lead">Mỗi file có một vai trò. Chia theo vai trò thay vì dồn vào một <code>main.tf</code> để diff dễ đọc.</p>
+<table>
+<thead><tr><th>File</th><th>Vai trò</th><th>Git</th></tr></thead>
+<tbody>
+<tr><td><code>terraform.tf</code> / <code>versions.tf</code></td><td>Pin version Terraform, khai báo provider cần dùng và <code>backend "s3" {}</code> block rỗng</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>backend.hcl</code></td><td>Value backend: bucket, key, region, <code>use_lockfile</code>. Truyền bằng <code>init -backend-config=backend.hcl</code></td><td><span class="badge git">commit</span> (không chứa secret)</td></tr>
+<tr><td><code>providers.tf</code></td><td>Config provider, <code>default_tags</code>, provider alias (ví dụ vùng us-east-1 cho certificate CloudFront)</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>variables.tf</code></td><td>Khai báo input, có <code>description</code>, <code>type</code>, <code>default</code> hợp lý và <code>validation</code></td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>locals.tf</code></td><td>Value dẫn xuất, ví dụ bộ tag chung</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>main.tf</code> và file theo chủ đề</td><td>Gọi module, resource chỉ thuộc root. Tách theo chủ đề khi file dài (<code>ecr.tf</code>, <code>ci_iam.tf</code>)</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>outputs.tf</code></td><td>Value cho người dùng hoặc root khác đọc. Đánh dấu <code>sensitive</code> khi cần</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>imports.tf</code></td><td>Các <code>import</code> block đưa resource có sẵn vào state</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>.terraform.lock.hcl</code></td><td>Pin version và checksum provider</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>tests/*.tftest.hcl</code></td><td>Testing plan-mode với provider giả</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>*.tfvars.example</code></td><td>Mẫu value, không có secret</td><td><span class="badge git">commit</span></td></tr>
+<tr><td><code>*.tfvars</code>, <code>*.auto.tfvars</code></td><td>Value thật của environment</td><td><span class="badge ign">gitignore</span></td></tr>
+<tr><td><code>.terraform/</code>, <code>*.tfstate*</code>, <code>*tfplan*</code>, <code>crash.log</code></td><td>Bộ nhớ đệm, state cục bộ, plan lưu, log lỗi</td><td><span class="badge ign">gitignore</span></td></tr>
+<tr><td><code>*.pem</code>, <code>*.key</code></td><td>Private key, certificate có private key</td><td><span class="badge ign">không bao giờ commit</span></td></tr>
+</tbody></table>
+<div class="callout bad"><b class="ic">x</b><div><span class="ttl">Không bao giờ commit</span><p>State, file plan, tfvars chứa value thật, private key hoặc certificate có private key. State và plan chứa cả value nhạy cảm dạng chữ thường (mật khẩu database, signing key). Scan diff trước mỗi lần <code>git add</code>.</p></div></div>
+
+<h3>Ví dụ terraform block và backend</h3>
+<div class="tabs" data-tabs>
+  <div class="tabbar" role="tablist"><button role="tab" aria-selected="true">terraform.tf</button><button role="tab" aria-selected="false">backend.hcl</button><button role="tab" aria-selected="false">providers.tf</button></div>
+  <div class="tabpane on"><pre><code><span class="k">terraform</span> {
+  required_version = <span class="s">"&gt;= 1.10"</span>
+
+  backend <span class="s">"s3"</span> {}
+
+  required_providers {
+    aws = {
+      source  = <span class="s">"hashicorp/aws"</span>
+      version = <span class="s">"~&gt; 6.0"</span>
+    }
+  }
+}</code></pre><p>Backend rỗng là kiểu "partial configuration": code không chứa tên bucket nên cùng một root dùng được cho nhiều environment nếu cần.</p></div>
+  <div class="tabpane"><pre><code>bucket       = <span class="s">"&lt;org&gt;-&lt;env&gt;-tfstate-&lt;region&gt;"</span>
+key          = <span class="s">"&lt;env&gt;/terraform.tfstate"</span>
+region       = <span class="s">"&lt;region&gt;"</span>
+use_lockfile = <span class="k">true</span></code></pre><p>Không có <code>profile</code>. Máy runner không có file credentials, nên một profile cố định làm <code>init</code> thất bại. Identity lấy từ environment variable của CI.</p></div>
+  <div class="tabpane"><pre><code><span class="k">provider</span> <span class="s">"aws"</span> {
+  region = var.aws_region
+  default_tags { tags = local.common_tags }
+}
+
+<span class="k">provider</span> <span class="s">"aws"</span> {
+  alias  = <span class="s">"us_east_1"</span>   <span class="c"># certificate và WAF của CloudFront phải ở us-east-1</span>
+  region = <span class="s">"us-east-1"</span>
+  default_tags { tags = local.common_tags }
+}</code></pre></div>
+</div>
+</section>
+
+<!-- 4 -->
+<section id="state-backend">
+<h2><span class="num">4</span>State và backend</h2>
+<p class="lead">State là tài sản quan trọng nhất của repo. Hãy đối xử với nó như database sản xuất.</p>
+<div class="grid2">
+<div class="card"><h4>Backend từ xa trên S3</h4>
+<ul><li><code>encrypt = true</code>, bucket encryption mặc định</li><li>Bật versioning để khôi phục bản state cũ</li><li>Chặn toàn bộ public access</li><li>Chủ sở hữu object bắt buộc (<code>BucketOwnerEnforced</code>)</li><li>Lifecycle: expire bản cũ sau một thời gian (ví dụ 90 ngày)</li></ul></div>
+<div class="card"><h4>Lockfile</h4>
+<p>Từ Terraform 1.10, <code>use_lockfile = true</code> tạo một object <code>.tflock</code> cạnh file state ngay trong S3. Không cần bảng DynamoDB riêng. Hai lần chạy cùng root không overwrite nhau.</p></div>
+</div>
+<figure class="fig">
+<svg viewBox="0 0 900 250" role="img" aria-label="Hai lần chạy cùng một root. Lần A giữ lock tflock trong S3 và ghi state. Lần B thấy lock và phải chờ.">
+  <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+  <g font-family="Segoe UI,system-ui,sans-serif" font-size="14">
+    <rect x="10" y="20" width="200" height="80" rx="12" fill="var(--teal-soft)" stroke="var(--teal)" stroke-width="2"/>
+    <text x="110" y="52" text-anchor="middle" font-weight="700" fill="var(--ink)">Lần chạy A</text>
+    <text x="110" y="76" text-anchor="middle" fill="var(--muted)">plan / apply đang chạy</text>
+    <rect x="10" y="150" width="200" height="80" rx="12" fill="var(--warn-soft)" stroke="var(--warn)" stroke-width="2"/>
+    <text x="110" y="182" text-anchor="middle" font-weight="700" fill="var(--ink)">Lần chạy B</text>
+    <text x="110" y="206" text-anchor="middle" fill="var(--muted)">cùng root, chạy sau</text>
+    <rect x="400" y="30" width="480" height="190" rx="16" fill="var(--panel)" stroke="var(--line)" stroke-width="2"/>
+    <text x="420" y="56" font-weight="700" fill="var(--ink)">Bucket state (S3)</text>
+    <rect x="425" y="78" width="200" height="56" rx="10" fill="var(--brand-soft)" stroke="var(--brand)"/>
+    <text x="525" y="102" text-anchor="middle" fill="var(--ink)" font-weight="600">terraform.tfstate</text>
+    <text x="525" y="122" text-anchor="middle" fill="var(--muted)" font-size="12.5">có nhiều version</text>
+    <rect x="650" y="78" width="210" height="56" rx="10" fill="var(--warn-soft)" stroke="var(--warn)"/>
+    <text x="755" y="102" text-anchor="middle" fill="var(--ink)" font-weight="600">terraform.tfstate.tflock</text>
+    <text x="755" y="122" text-anchor="middle" fill="var(--muted)" font-size="12.5">tồn tại khi A đang giữ</text>
+    <path d="M210 60H398" stroke="var(--teal)" stroke-width="2.4" marker-end="url(#ar2)"/>
+    <text x="304" y="50" text-anchor="middle" fill="var(--teal)" font-size="12.5">1 tạo lock, 2 ghi state</text>
+    <path d="M210 190H398" stroke="var(--warn)" stroke-width="2.4" stroke-dasharray="7 5" marker-end="url(#ar2)"/>
+    <text x="304" y="180" text-anchor="middle" fill="var(--warn)" font-size="12.5">thấy lock, chờ lock-timeout</text>
+    <text x="640" y="190" text-anchor="middle" fill="var(--muted)" font-size="13">Khi A xong, lock được delete và B mới chạy.</text>
+  </g>
+</svg>
+<figcaption>Hình 2. State lock nằm ngay trong bucket. Dùng <code>-lock-timeout</code> để chờ thay vì thất bại ngay.</figcaption>
+</figure>
+
+<h3>Những điều cần nhớ về state</h3>
+<ul>
+<li><strong>State chứa secret.</strong> Mọi value đưa vào qua <code>secret_string</code>, mật khẩu database, signing key đều nằm dạng chữ thường trong state và trong file plan. Quyền đọc bucket tương đương quyền đọc các secret đó.</li>
+<li><strong>Bucket riêng cho mỗi environment</strong>, nằm trong cùng account với environment đó. Một bucket chung với nhiều key làm mọi người có quyền ở environment thấp đọc và ghi được state environment cao.</li>
+<li><strong>Mỗi root một key riêng.</strong> Hai root ghi cùng một object sẽ overwrite nhau và mỗi bên thấy resource của bên kia là thứ cần delete.</li>
+<li><strong>Không dùng workspace để thay cho environment</strong> trên state cục bộ: chỉ nhân bản file state trên một máy.</li>
+<li><strong>Không sửa tay state.</strong> <code>state mv</code>, <code>state rm</code>, <code>import</code>, <code>taint</code> đều là thao tác ghi, cần phê duyệt riêng và nên làm qua pipeline hoặc <code>moved</code> block/<code>import</code> trong code.</li>
+<li>Gặp orphan lock sau khi một plan bị hủy giữa chừng: kiểm tra không có lần chạy nào còn sống rồi mới <code>force-unlock</code>. Đó là lý do job plan trong CI để <code>interruptible: false</code>.</li>
+</ul>
+</section>
+
+<!-- 5 -->
+<section id="bootstrap">
+<h2><span class="num">5</span>Bootstrap: tạo bucket state</h2>
+<p class="lead">Vấn đề: Terraform cần bucket để lưu state, nhưng bucket đó cũng muốn được Terraform quản lý.</p>
+<figure class="fig">
+<svg viewBox="0 0 900 200" role="img" aria-label="Ba bước bootstrap: tạo bucket bằng CLI không có state, thêm backend và import block rồi plan, apply để nhận bucket vào state và plan lại ra No changes.">
+  <defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+  <g font-family="Segoe UI,system-ui,sans-serif" font-size="14">
+    <rect x="10" y="30" width="260" height="130" rx="14" fill="var(--warn-soft)" stroke="var(--warn)" stroke-width="2"/>
+    <circle cx="36" cy="56" r="14" fill="var(--warn)"/><text x="36" y="61" text-anchor="middle" fill="#fff" font-weight="700">1</text>
+    <text x="60" y="61" font-weight="700" fill="var(--ink)">Tạo bằng CLI</text>
+    <text x="28" y="92" fill="var(--muted)">create-bucket, chặn public,</text>
+    <text x="28" y="112" fill="var(--muted)">bật versioning. Không có state.</text>
+    <text x="28" y="138" fill="var(--warn)" font-size="12.5">idempotent: bucket có rồi thì bỏ qua</text>
+    <rect x="320" y="30" width="260" height="130" rx="14" fill="var(--brand-soft)" stroke="var(--brand)" stroke-width="2"/>
+    <circle cx="346" cy="56" r="14" fill="var(--brand)"/><text x="346" y="61" text-anchor="middle" fill="#fff" font-weight="700">2</text>
+    <text x="370" y="61" font-weight="700" fill="var(--ink)">Nhận vào Terraform</text>
+    <text x="338" y="92" fill="var(--muted)">backend + import block (gate</text>
+    <text x="338" y="112" fill="var(--muted)">bằng variable). plan: N import,</text>
+    <text x="338" y="132" fill="var(--muted)">M thêm, 0 delete. Đọc rồi apply.</text>
+    <rect x="630" y="30" width="260" height="130" rx="14" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="2"/>
+    <circle cx="656" cy="56" r="14" fill="var(--ok)"/><text x="656" y="61" text-anchor="middle" fill="#fff" font-weight="700">3</text>
+    <text x="680" y="61" font-weight="700" fill="var(--ink)">Đóng gate, plan lại</text>
+    <text x="648" y="92" fill="var(--muted)">tắt variable adopt. plan phải ra</text>
+    <text x="648" y="112" fill="var(--muted)">"No changes": code, state và</text>
+    <text x="648" y="132" fill="var(--muted)">thực tế đã khớp nhau.</text>
+    <path d="M272 95H318" stroke="var(--muted)" stroke-width="2" marker-end="url(#ar3)"/>
+    <path d="M582 95H628" stroke="var(--muted)" stroke-width="2" marker-end="url(#ar3)"/>
+    <text x="450" y="188" text-anchor="middle" fill="var(--muted)" font-size="13">State chỉ sinh ra ở bước 2, trực tiếp trong bucket. Không có file state nào nằm trên máy cá nhân.</text>
+  </g>
+</svg>
+<figcaption>Hình 3. Quy trình hai nửa: nửa CLI tạo bucket, nửa Terraform nhận bucket về quản lý.</figcaption>
+</figure>
+
+<h3>Các phương án đã cân nhắc</h3>
+<table>
+<thead><tr><th>Phương án</th><th>Kết quả</th><th>Lý do</th></tr></thead>
+<tbody>
+<tr><td>Apply với state cục bộ, rồi <code>init -migrate-state</code> vào bucket</td><td>Bỏ</td><td>Giữa hai lệnh phải sửa code (thêm backend). Một lần chạy pipeline gắn với một commit nên không làm được, và state phải chuyển tay giữa hai lần chạy</td></tr>
+<tr><td>Tạo bằng console rồi import</td><td>Bỏ</td><td>Phần config tạo bằng tay trước khi có code mô tả nó, khoảng trống không được quản lý</td></tr>
+<tr><td>Một job vừa apply cục bộ vừa migrate</td><td>Bỏ</td><td>Một job làm hai việc không chạy lại được, gián đoạn giữa chừng để state ở nơi không ai gọi tên được</td></tr>
+<tr><td>Truyền file state qua artifact giữa hai lần chạy</td><td>Bỏ</td><td>Công bố state cho mọi người có quyền artifact, expire theo giờ, bỏ rơi bucket nếu lần sau không chạy</td></tr>
+<tr><td><strong>Nửa CLI tạo bucket, nửa Terraform nhận bucket (import)</strong></td><td>Chọn</td><td>Nửa CLI không sinh state nên không có gì để chuyển. State sinh ra trực tiếp trong bucket</td></tr>
+</tbody></table>
+
+<h3>Các lớp ngăn chạy lặp</h3>
+<ol class="plain">
+<li><strong>Idempotent</strong>: job tạo bucket thoát thành công nếu bucket đã có. Đây là lớp duy nhất không dependency người kiểm tra.</li>
+<li><strong>Dấu hoàn thành duy nhất</strong>: sự tồn tại của object state trong bucket cho biết bootstrap đã xong chưa. Không trả lời bằng trí nhớ.</li>
+<li><strong>Điều kiện đầu của từng job</strong>: từ chối nếu thứ tự sai (ví dụ nhận bucket khi bucket chưa có, hoặc import khi state đã có).</li>
+<li><strong>Bề mặt kích hoạt</strong>: job manual, chỉ hiện khi directory bootstrap thay đổi, dùng chung một <code>resource_group</code>, và <code>prevent_destroy</code> trên bucket.</li>
+</ol>
+
+<h3>Import block có gate bằng variable</h3>
+<pre><code><span class="k">import</span> {
+  for_each = var.adopt_existing_bucket ? toset([<span class="s">"this"</span>]) : toset([])
+  to       = aws_s3_bucket.terraform_state
+  id       = var.state_bucket_name
+}
+
+<span class="k">resource</span> <span class="s">"aws_s3_bucket"</span> <span class="s">"terraform_state"</span> {
+  bucket = var.state_bucket_name
+  lifecycle { prevent_destroy = <span class="k">true</span> }
+}</code></pre>
+<p>Import block trỏ tới resource đã có trong state sẽ làm plan lỗi. Nếu không có gate, phải delete block sau khi nhận bucket, tức là thêm một lần sửa code, đúng điều bootstrap muốn tránh. Sau khi apply xong hãy tắt variable, vì nếu để mở thì mọi plan sau đó bị chặn.</p>
+<div class="callout warn"><b class="ic">!</b><div><span class="ttl">Cách đọc plan nhận bucket</span><p>Ba resource "will be imported" nhưng ba resource thêm mới không đồng nghĩa với nhau: config lifecycle là thêm thật, ownership controls thường là no-op, còn encryption có thể đổi config đang chạy (ví dụ từ key mặc định của S3 sang KMS key). Một dòng thay đổi ngoài <code>tags</code> là tín hiệu dừng. Bất kỳ dòng <code>destroy</code> nào cũng là dừng.</p></div></div>
+<div class="callout rule"><b class="ic">!</b><div><span class="ttl">Root bootstrap riêng cho từng environment</span><p>Không dùng lại root bootstrap của environment khác bằng cách đổi tên bucket. Tên bucket là thuộc tính bắt buộc tạo mới, nên plan sẽ delete bucket cũ rồi tạo bucket mới, kéo theo state của cả environment đang chạy. Cũng không để state bootstrap là file cục bộ chỉ có trên một máy.</p></div></div>
+</section>
+
+<!-- 6 -->
+<section id="bien-tfvars">
+<h2><span class="num">6</span>Variable, tfvars và secret</h2>
+<p class="lead">Variable là giao diện của root và module. Làm rõ nó thì phần còn lại dễ đọc.</p>
+<div class="grid2">
+<div class="card"><h4>Khai báo tốt</h4>
+<pre><code><span class="k">variable</span> <span class="s">"environment"</span> {
+  description = <span class="s">"Tên environment, dùng để đặt tên"</span>
+  type        = string
+  default     = <span class="s">"uat"</span>
+
+  validation {
+    condition     = var.environment == <span class="s">"uat"</span>
+    error_message = <span class="s">"Root này chỉ dành cho uat."</span>
+  }
+}</code></pre></div>
+<div class="card"><h4>Quy tắc</h4>
+<ul>
+<li>Luôn có <code>description</code> và <code>type</code>.</li>
+<li>Value an toàn (cỡ máy, số lượng) có default hợp lý và <code>validation</code> bắt value phi lý.</li>
+<li>Value đặc thù environment nhưng không phải secret (ID account, tên miền) không có default, buộc người gọi truyền vào.</li>
+<li>Secret đánh <code>sensitive = true</code> và truyền qua environment variable <code>TF_VAR_*</code> hoặc nguồn secret, không qua file commit.</li>
+</ul></div>
+</div>
+<h3>Thứ tự ưu tiên của value</h3>
+<table>
+<thead><tr><th>Cao đến thấp</th><th>Nguồn</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>-var</code> và <code>-var-file</code> trên dòng lệnh</td></tr>
+<tr><td>2</td><td><code>*.auto.tfvars</code> (theo thứ tự chữ cái) rồi <code>terraform.tfvars</code></td></tr>
+<tr><td>3</td><td>Environment variable <code>TF_VAR_name</code></td></tr>
+<tr><td>4</td><td><code>default</code> trong khai báo</td></tr>
+</tbody></table>
+<div class="callout bad"><b class="ic">x</b><div><span class="ttl">Bẫy: value quan trọng chỉ nằm trong file bị gitignore</span><p>Một dự án có hai value chỉ sống trong <code>uat.tfvars</code> nằm ngoài Git: một cờ đổi load balancer thành nội bộ, và một AMI được pin cho NAT instance. Runner CI không có file này nên plan sẽ replace load balancer thành internet-facing và thay NAT instance, cắt đường ra ngoài. Giải pháp: đưa value an toàn thành <code>default</code> trong code. Chỉ giữ ngoài Git những value thật sự là secret.</p></div></div>
+<div class="callout bad"><b class="ic">x</b><div><span class="ttl">Bẫy: ID account có default</span><p>Nếu code mang sẵn ID account "mong đợi" làm default thì kiểm tra account chỉ so code với chính nó. ID phải đến từ một nguồn độc lập (variable của dự án CI) để so với identity thật mà credential trả về.</p></div></div>
+</section>
+
+<!-- 7 -->
+<section id="lock-version">
+<h2><span class="num">7</span>Lock file và version</h2>
+<p class="lead">Hai thứ phải pin: version Terraform và version provider.</p>
+<ul>
+<li><code>required_version</code> đặt sàn tối thiểu (ví dụ <code>&gt;= 1.10</code> vì cần <code>use_lockfile</code>). Trong CI, pin version chính xác qua tag image. Version CI không được cũ hơn bản đã ghi state lần cuối, vì Terraform từ chối đọc state do bản mới hơn ghi.</li>
+<li><code>.terraform.lock.hcl</code> pin version và checksum của provider. Commit file này. Không có nó, provider trôi trong khoảng <code>~&gt; 6.0</code> và một kiểm tra có thể bắt đầu đỏ vào ngày chẳng ai đổi gì.</li>
+<li>Lock cả hai platform nếu có người dùng khác nhau: <code>terraform providers lock -platform=linux_amd64 -platform=windows_amd64</code>. Runner chạy Linux, dev machine có thể chạy Windows. Thiếu checksum platform nào thì <code>init</code> trên platform đó lỗi.</li>
+<li>Module chạy test riêng cũng cần lock file riêng, vì job test chạy <code>init</code> ngay trong directory module.</li>
+</ul>
+<div class="callout warn"><b class="ic">!</b><div><span class="ttl">Dấu hiệu bộ test không chạy</span><p>Delete lock file mà không delete <code>.terraform</code> làm <code>terraform test</code> báo "unknown provider" và in <code>0 passed, 0 failed</code>. Số không là tín hiệu bộ test chưa hề chạy, khác với một assertion thất bại. Delete cả hai và init lại.</p></div></div>
+<p>Nâng provider là một thay đổi có chủ đích: <code>terraform init -upgrade</code>, đọc plan, commit lock file trong cùng merge request. Cũng pin AMI của EC2 instance thay vì dùng "latest", nếu không một image mới của nhà cung cấp tạo ra chuỗi replace chưa ai duyệt.</p>
+</section>
+
+<!-- 8 -->
+<section id="module">
+<h2><span class="num">8</span>Module</h2>
+<p class="lead">Module tốt nhỏ, rõ vai trò và nói thật về những gì nó không làm.</p>
+<div class="grid2">
+<div class="card"><h4>Cấu trúc một module</h4>
+<ul><li><code>main.tf</code>, <code>variables.tf</code>, <code>outputs.tf</code>, <code>locals.tf</code></li><li><code>README.md</code>: giả định và điều module sẽ không phục vụ</li><li><code>tests/</code> và <code>examples/minimal/</code></li><li><code>.terraform.lock.hcl</code> nếu có test</li></ul></div>
+<div class="card"><h4>Ranh giới</h4>
+<ul><li>Không tạo provider, nhận từ root qua <code>providers = {}</code></li><li>Không đọc state của module khác</li><li>Mọi thứ cần thiết đi vào qua variable, mọi thứ cho người khác đi ra qua output</li><li>Dependency đi một chiều: root truyền output của module này làm input module kia</li></ul></div>
+</div>
+<h3>Đặt tên theo vai trò, không theo hình dạng AWS</h3>
+<p>Module <code>security-group</code> hứa sự tổng quát mà thực tế từ chối. Module <code>broker-security</code> yêu cầu một bộ port cụ thể và không mở dải bất kỳ. Tên là thứ người đọc tin trước khi mở file, nên tên phải đúng với mức tái sử dụng thật. README mỗi module nêu giả định và điều sẽ không phục vụ, vì Terraform không có tham số mô tả cấp module.</p>
+<h3>Khi nào tách module</h3>
+<table>
+<thead><tr><th>Tách</th><th>Giữ ở root</th></tr></thead>
+<tbody>
+<tr><td>Nhóm resource có người dùng thứ hai (environment testing phải dựng lại mạng)</td><td>Resource được nhiều module dùng chung mà không module nào sở hữu (ví dụ KMS key dùng cho log, ổ đĩa và secret)</td></tr>
+<tr><td>Nhóm có lifecycle, quyền access hoặc người duyệt riêng</td><td>Một hay hai resource không có logic riêng. Bọc để đạt "không resource trong root" chỉ thêm một lớp không mang quyết định nào</td></tr>
+</tbody></table>
+<h3>Truyền provider và gate điều kiện</h3>
+<pre><code><span class="k">module</span> <span class="s">"edge"</span> {
+  source = <span class="s">"../../../../modules/edge"</span>
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1   <span class="c"># module cần certificate ở vùng khác</span>
+  }
+
+  vpc_id            = module.networking.vpc_id
+  public_subnet_ids = values(module.networking.public_subnet_ids)
+}</code></pre>
+<p>Chuỗi dependency đọc được ngay từ các đối số: <code>networking</code> cho ra <code>vpc_id</code>, <code>edge</code> nhận vào. Không có <code>depends_on</code> khi tham chiếu thuộc tính đã đủ biểu đạt thứ tự.</p>
+</section>
+
+<!-- 9 -->
+<section id="provider-guard">
+<h2><span class="num">9</span>Provider, default_tags và account guard</h2>
+<p class="lead">Pipeline lấy identity từ environment variable, nên config phải tự bảo vệ mình khỏi chạy nhầm account.</p>
+<pre><code><span class="k">data</span> <span class="s">"aws_caller_identity"</span> <span class="s">"current"</span> {}
+
+<span class="k">resource</span> <span class="s">"terraform_data"</span> <span class="s">"account_guard"</span> {
+  input = data.aws_caller_identity.current.account_id
+
+  lifecycle {
+    precondition {
+      condition     = data.aws_caller_identity.current.account_id == var.workload_account_id
+      error_message = <span class="s">"Đang đăng nhập account ${data.aws_caller_identity.current.account_id}, khác workload_account_id. Dừng."</span>
+    }
+  }
+}</code></pre>
+<ul>
+<li>Dùng <code>precondition</code> chứ không dùng <code>check</code> block: <code>check</code> chỉ cảnh báo, plan sai account vẫn đi tới nút apply.</li>
+<li>Test có một run kiểm tra guard: truyền ID sai và dùng <code>expect_failures = [terraform_data.account_guard]</code>.</li>
+<li><code>default_tags</code> ở provider gắn tag cho mọi resource. Lưu ý quyền IAM: nếu identity CI bị giới hạn bằng permission boundary thiếu <code>TagInstanceProfile</code>, tag mặc định vẫn lan xuống <code>tags_all</code> dù bạn đã bỏ tag trong từng resource, và apply lỗi giữa chừng. Cấp quyền tag cho từng loại resource đang tạo.</li>
+<li>Tên resource IAM có path (<code>/tf-managed/</code>) giúp boundary giới hạn đúng phần Terraform được phép đụng.</li>
+</ul>
+</section>
+
+<!-- 10 -->
+<section id="import-moved">
+<h2><span class="num">10</span>Import và moved: sửa state bằng code</h2>
+<p class="lead">Mọi thay đổi state nên là thay đổi trong Git, được review và chạy qua pipeline.</p>
+<div class="grid2">
+<div class="card"><h4>import</h4><p>Đưa resource có sẵn ngoài Terraform vào state. Plan cho thấy "will be imported" trước khi áp dụng.</p>
+<pre><code><span class="k">import</span> {
+  to = module.networking.aws_vpc.main
+  id = <span class="s">"vpc-xxxxxxxx"</span>
+}</code></pre></div>
+<div class="card"><h4>moved</h4><p>Đổi địa chỉ khi đổi tên hay chuyển vào module, tránh delete rồi tạo lại.</p>
+<pre><code><span class="k">moved</span> {
+  from = aws_s3_bucket.state
+  to   = module.state.aws_s3_bucket.this
+}</code></pre></div>
+</div>
+<ul>
+<li>Plan phải ghi rõ "N to import" và 0 delete. Một dòng <code>destroy</code> nghĩa là import khớp sai địa chỉ.</li>
+<li>Import block chỉ cần một lần. Sau khi áp dụng có thể delete hoặc giữ dormant có gate như ở mục 5. Một block trỏ tới resource đã nằm trong state làm plan lỗi.</li>
+<li>Import block xung đột với <code>mock_provider</code> (mục 11): test báo "Cannot import resources from mock providers".</li>
+<li>Dùng <code>terraform plan -generate-config-out</code> để lấy khung code cho resource có sẵn, rồi dọn lại bằng tay.</li>
+</ul>
+</section>
+
+<!-- 11 -->
+<section id="kiem-thu">
+<h2><span class="num">11</span>Testing</h2>
+<p class="lead">Testing plan-mode với provider giả chạy trong vài giây và không cần identity AWS.</p>
+<pre><code><span class="k">mock_provider</span> <span class="s">"aws"</span> {
+  mock_data <span class="s">"aws_caller_identity"</span> {
+    defaults = { account_id = <span class="s">"111111111111"</span> }
+  }
+}
+
+variables {
+  workload_account_id = <span class="s">"111111111111"</span>
+}
+
+<span class="k">run</span> <span class="s">"defaults_match_constraints"</span> {
+  command = plan
+  assert {
+    condition     = var.environment == <span class="s">"uat"</span>
+    error_message = <span class="s">"Environment phải mặc định là uat."</span>
+  }
+}
+
+<span class="k">run</span> <span class="s">"refuses_wrong_account"</span> {
+  command   = plan
+  variables { workload_account_id = <span class="s">"222222222222"</span> }
+  expect_failures = [terraform_data.account_guard]
+}</code></pre>
+<h3>Điều test plan-mode làm được và không làm được</h3>
+<table>
+<thead><tr><th>Làm được</th><th>Không làm được</th></tr></thead>
+<tbody>
+<tr><td>Kiểm tra value mặc định, <code>validation</code>, <code>precondition</code></td><td>Đọc thuộc tính chỉ biết sau apply (ID của resource, tập <code>route</code> của route table): lỗi "Unknown condition value"</td></tr>
+<tr><td>Kiểm tra quan hệ giữa các value đã config (security group gắn đúng interface)</td><td>Đọc thuộc tính bị scanner suppress, vì thuộc tính tắt không có value để đọc</td></tr>
+<tr><td>Chạy trên mọi branch, không cần credential</td><td>Đọc meta-argument <code>lifecycle</code> như <code>prevent_destroy</code></td></tr>
+</tbody></table>
+<div class="callout rule"><b class="ic">!</b><div><span class="ttl">Quy tắc</span><p>Chỉ viết test ở plan-mode. Test apply-mode tạo resource thật và cần ngân sách. Khi một điều không thể khẳng định bằng thuộc tính đã config, ghi rõ điều gì còn chưa được kiểm chứng thay vì nâng test lên apply-mode. Test cũng phải đứng trong gate của pipeline: job plan khai báo <code>needs</code> vào job test.</p></div></div>
+<p>Hạn chế đã gặp: root có <code>import</code> block không chạy được test với provider giả. Cách xử lý là đưa test vào module (không có import) hoặc hoàn tất import rồi bỏ block, thay vì tắt test.</p>
+</section>
+
+<!-- 12 -->
+<section id="quy-trinh">
+<h2><span class="num">12</span>Quy trình phát triển hằng ngày</h2>
+<p class="lead">Mọi thứ chạy trên dev machine đều không ghi vào infrastructure. Việc ghi chỉ xảy ra trong pipeline.</p>
+<div class="tabs" data-tabs>
+  <div class="tabbar" role="tablist"><button role="tab" aria-selected="true">Vòng lặp cục bộ</button><button role="tab" aria-selected="false">Trước merge request</button><button role="tab" aria-selected="false">Đọc plan</button></div>
+  <div class="tabpane on"><pre><code><span class="c"># 1. Định dạng và kiểm tra cú pháp, không cần mạng hay credential</span>
+terraform fmt -recursive
+terraform init -backend=false
+terraform validate
+
+<span class="c"># 2. Testing plan-mode</span>
+terraform test
+
+<span class="c"># 3. Plan thật, chỉ khi cần soi, với đúng profile của environment</span>
+AWS_PROFILE=&lt;profile-môi-trường&gt; terraform init -backend-config=backend.hcl
+AWS_PROFILE=&lt;profile-môi-trường&gt; terraform plan -out=tfplan</code></pre><p><code>init -backend=false</code> đủ cho validate và test, và là thứ pipeline chạy ở các stage chưa cần AWS. Luôn nêu rõ profile trước mọi lệnh AWS.</p></div>
+  <div class="tabpane"><ul>
+<li>Chạy lại bước 1 và 2, cộng scan secret trên diff trước <code>git add</code>.</li>
+<li>Mô tả trong merge request: root nào đổi, plan dự kiến (tạo, sửa, delete bao nhiêu), có replace resource có dữ liệu không.</li>
+<li>Đổi hành vi thì cập nhật README và tài liệu quyết định cùng lượt.</li>
+<li>Không để mô tả resource (<code>description</code> hiển thị trong console) trỏ về tài liệu nội bộ. Hãy viết lý do kỹ thuật ngay tại chỗ.</li>
+</ul></div>
+  <div class="tabpane"><ol class="plain">
+<li>Đọc dòng tổng: <code>Plan: A to add, B to change, C to destroy</code>.</li>
+<li>Tìm chữ <code>replace</code> hoặc <code>must be replaced</code>. Ở resource có dữ liệu (database, queue) đây là dừng và hỏi.</li>
+<li>Tìm load balancer đổi <code>internal</code>, NAT instance bị thay, bảng route bị delete. Đây là thay đổi cắt mạng.</li>
+<li>Soát mọi <code>secretsmanager_secret_version</code> được cập nhật: value trong tfvars có thể overwrite value đang chạy do nhóm khác điền.</li>
+<li>Kiểm tra số thay đổi so với kỳ vọng. Một plan 0 thay đổi trước lần chạy CI đầu tiên là bằng chứng code và thực tế khớp nhau.</li>
+</ol></div>
+</div>
+<div class="callout bad"><b class="ic">x</b><div><span class="ttl">Không apply từ máy cá nhân</span><p>Với environment dùng chung, apply chỉ qua pipeline. Máy cá nhân có version Terraform, lock file, variable và identity mà không ai khác tái hiện được, và dấu vết duy nhất của việc đã apply là lịch sử terminal của một người. Trợ lý AI và script cũng không chạy <code>apply</code>: người bấm job sau khi đọc plan.</p></div></div>
+</section>
+
+<!-- 13 -->
+<section id="apply">
+<h2><span class="num">13</span>Apply và xử lý sự cố</h2>
+<p class="lead">Quy tắc vàng: apply đúng file plan đã duyệt, không plan lại giữa chừng.</p>
+<ul>
+<li>Apply file plan: <code>terraform apply tfplan</code>. Cờ <code>-auto-approve</code> đi kèm file plan bị Terraform bỏ qua, nhưng làm người đọc tưởng pipeline apply không cần duyệt. Bỏ cờ đó đi: approval gate thật là job manual.</li>
+<li>Plan chứa dữ liệu đọc từ state và nguồn dữ liệu, nên artifact plan chỉ cho role Developer trở lên và expire nhanh.</li>
+<li>Dùng <code>-lock-timeout</code> để chờ lock thay vì thất bại.</li>
+</ul>
+<h3>Bảng sự cố hay gặp</h3>
+<table>
+<thead><tr><th>Triệu chứng</th><th>Nguyên nhân</th><th>Hành động</th></tr></thead>
+<tbody>
+<tr><td><code>Saved plan is stale</code></td><td>State đã tăng serial (có lần chạy khác apply) sau khi plan được lưu</td><td>Chạy lại job plan để có artifact mới, duyệt lại, rồi apply</td></tr>
+<tr><td>Apply dừng giữa chừng vì <code>AccessDenied</code></td><td>Identity CI thiếu quyền cho một loại resource hoặc hành động tag</td><td>Báo lại, không thử lại hay rollback automatic. Đọc state rồi sửa quyền ở IAM, chạy plan mới</td></tr>
+<tr><td>Lần chạy nối tiếp bị chặn bởi lock</td><td>Plan trước bị hủy, để lại <code>.tflock</code></td><td>Xác nhận không có lần chạy sống rồi <code>force-unlock</code></td></tr>
+<tr><td>Plan "0 to add" nhưng kỳ vọng có thay đổi</td><td>Chạy nhầm root hoặc nhầm variable</td><td>Kiểm tra <code>TF_ROOT</code> in ra ở đầu job và account đang đăng nhập</td></tr>
+<tr><td>Job lỗi trước phần <code>get_sources</code></td><td>Lỗi hệ thống runner, chưa đụng gì tới infrastructure</td><td>Thử lại an toàn. Lỗi sau <code>init</code> là loại khác: dừng và kiểm tra trước khi bấm lại</td></tr>
+</tbody></table>
+<div class="callout warn"><b class="ic">!</b><div><span class="ttl">Apply lỗi giữa chừng: báo và hỏi</span><p>Một phần resource đã tạo và đã ghi vào state. Báo trạng thái và xin quyết định, đừng thử lại hay rollback theo phản xạ. Cũng đừng ép service chạy bằng một version resource do Terraform đăng ký nếu một pipeline triển khai khác quản lý version đó: bạn sẽ replace bản đã release bằng bản cũ trong config.</p></div></div>
+</section>
+
+<!-- 14 -->
+<section id="pipeline">
+<h2><span class="num">14</span>Pipeline CI/CD cho Terraform</h2>
+<p class="lead">Mục tiêu: một nhận dạng duy nhất, một bộ công cụ pin version và một bản plan có thể đọc trước mỗi lần thay đổi trạng thái.</p>
+<h3>Sơ đồ</h3>
+<iframe class="diagram" src="terraform-pipeline-diagram.html" title="Sơ đồ AWS của pipeline Terraform"></iframe>
+<p style="font-size:13px;color:var(--muted)">Sơ đồ tương tác, vẽ bằng awsketch. Bấm chip flow ở đầu sơ đồ rồi Next để đi từng mũi tên. Nếu khung trống, mở trực tiếp file <code>terraform-pipeline-diagram.html</code> cùng directory.</p>
+
+<h3>Stage và job</h3>
+<table>
+<thead><tr><th>Stage</th><th>Job</th><th>Chạy khi</th><th>Đụng AWS?</th></tr></thead>
+<tbody>
+<tr><td><code>pre-commit</code></td><td><code>trivy_secret_scan</code>, <code>trivy_iac_scan</code>, <code>checkov_iac_scan</code></td><td>Automatic mọi branch và merge request</td><td>Không</td></tr>
+<tr><td><code>validate</code></td><td><code>terraform_fmt</code> (cho phép lỗi), <code>&lt;stack&gt;:validate</code></td><td>Automatic</td><td>Không</td></tr>
+<tr><td><code>test</code></td><td><code>&lt;stack&gt;:test</code>, <code>plan_risk_policy_test</code></td><td>Automatic</td><td>Không</td></tr>
+<tr><td><code>bootstrap</code></td><td>Trigger child pipeline, job: probe, create, plan, apply</td><td>Manual, khi directory bootstrap đổi</td><td>Có</td></tr>
+<tr><td><code>plan</code></td><td><code>&lt;stack&gt;:plan</code> (manual), rồi <code>risk</code> và <code>infracost</code> tự chạy sau</td><td>Protected ref</td><td>Plan có, risk và cost không</td></tr>
+<tr><td><code>apply</code></td><td><code>&lt;stack&gt;:apply</code></td><td>Manual, protected ref, verdict PASS</td><td>Có</td></tr>
+</tbody></table>
+
+<h3>Cấu trúc file pipeline</h3>
+<pre class="tree"><code><span class="d">.gitlab-ci.yml</span>              <span class="n"># global variable, job dùng chung cho cả repo, include các stack</span>
+<span class="d">.gitlab/ci/</span>
+├── <span class="d">templates/terraform.yml</span>    <span class="n"># job ẩn: .tf_validate, .tf_test, .tf_plan, .tf_risk, .tf_apply, bộ rules</span>
+├── <span class="d">stacks/&lt;stack&gt;.yml</span>       <span class="n"># mỗi stack: variable STACK, TF_ROOT, TF_INIT_ARGS + job extends template</span>
+├── <span class="d">bootstrap.yml</span>              <span class="n"># child pipeline tạo bucket state</span>
+├── <span class="d">policy/{common,&lt;stack&gt;}/plan.rego</span>   <span class="n"># luật scoring risk</span>
+├── <span class="d">fixtures/</span>                  <span class="n"># plan JSON mẫu để test luật, tên file có mức kỳ vọng</span>
+├── <span class="d">scripts/</span>                   <span class="n"># cài conftest, scoring, kiểm tra release branch</span>
+└── <span class="d">TERRAFORM.md</span>               <span class="n"># hướng dẫn vận hành, đi cùng bản release</span></code></pre>
+<p>Thêm một stack mới là thêm một file stack, một directory policy, một directory fixture và variable có phạm vi riêng. Dùng <code>!reference</code> chứ không dùng YAML anchor để chia sẻ rules, vì anchor không phân giải qua các file được include.</p>
+
+<h3>Rules: gate là điều kiện, không phải thứ tự stage</h3>
+<div class="tabs" data-tabs>
+  <div class="tabbar" role="tablist"><button role="tab" aria-selected="true">Gate automatic</button><button role="tab" aria-selected="false">Manual plan</button><button role="tab" aria-selected="false">Apply</button></div>
+  <div class="tabpane on"><pre><code>.gate_rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH &amp;&amp; $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH</code></pre><p>Ba luật này chạy mỗi job đúng một lần. Nếu chỉ có hai điều kiện "merge request" và "branch", một lần push lên branch có merge request mở sẽ tạo hai pipeline và hai trạng thái có thể mâu thuẫn nhau.</p></div>
+  <div class="tabpane"><pre><code>.protected_manual_rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - if: $CI_COMMIT_BRANCH &amp;&amp; $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH &amp;&amp; $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+      allow_failure: true</code></pre><p>Job plan manual, chỉ trên protected ref. CI variables chứa AWS key cũng được bảo vệ nên chỉ job trên protected ref mới nhận được nó.</p></div>
+  <div class="tabpane"><pre><code>.tf_apply:
+  script:
+    - test -s "$PLAN_FILE" || { echo "Refusing apply: missing plan"; exit 1; }
+    - terraform show -json "$PLAN_FILE" &gt; /dev/null
+    - grep -qx "plan_sha256=$(sha256sum "$PLAN_FILE" | cut -d' ' -f1)" risk-verdict.txt
+    - grep -qx "decision=PASS" risk-verdict.txt
+    - terraform apply -no-color -lock-timeout=300s "$PLAN_FILE"
+  rules:
+    - if: $CI_COMMIT_BRANCH &amp;&amp; $CI_COMMIT_REF_PROTECTED == "true"
+      when: manual
+      allow_failure: false</code></pre><p>Mọi luật giữ điều kiện <code>$CI_COMMIT_BRANCH</code>: variable này rỗng ở pipeline tag, nên protected tag không bao giờ chạm tới plan hay apply.</p></div>
+</div>
+<div class="callout rule"><b class="ic">!</b><div><span class="ttl">Không bao giờ dùng $CI_DEFAULT_BRANCH</span><p>Nếu quy ước của repo release giữ default branch luôn rỗng và code nằm ở các branch version, một luật gắn vào default branch không khớp ref nào mang code. Kết quả là job plan và apply không bao giờ xuất hiện. Hãy kiểm tra điều này trước khi hứa với ai rằng một job sẽ chạy.</p></div></div>
+<div class="callout warn"><b class="ic">!</b><div><span class="ttl">needs không phải là gate</span><p><code>needs</code> làm job apply đợi plan và risk, nhưng job risk được phép thất bại (<code>allow_failure</code>) nên nếu chỉ dựa vào <code>needs</code>, apply vẫn chạy. Gate thật là bước kiểm tra nằm trong chính script apply: có file plan, hash plan khớp verdict, verdict là PASS.</p></div></div>
+
+<h3>Identity và secret trong CI</h3>
+<ul>
+<li>AWS key nằm trong variable CI (masked, protected). Không có file credentials trên runner, không in ra log, không đưa vào tài liệu hay chat. Masking chỉ che đúng chuỗi nguyên văn: value bị encryption base64 hay tách ra vẫn lộ. Masking giảm tai nạn, không phải kiểm soát access.</li>
+<li>Identity Terraform CI tách khỏi identity chỉ đẩy image. Đừng mở rộng quyền của identity hẹp có sẵn.</li>
+<li>Có thể dùng OIDC (không có long-lived key) nếu tổ chức chịu lập nhà cung cấp identity. Khi chưa thì static key nằm trong variable protected và có chu kỳ xoay.</li>
+<li>Variable dài ít ký tự và không secret không được đánh masked: GitLab từ chối, và nếu được thì sẽ che mất chữ đó trong plan.</li>
+<li>Một variable ID account riêng (không masked) được shell guard và <code>TF_VAR_workload_account_id</code> cùng đọc, để code và identity so với nguồn độc lập.</li>
+<li>Child pipeline khai <code>inherit: variables: false</code> và tự truyền variable cần thiết. Nếu không, global variable của parent pipeline như <code>TF_ROOT</code> overwrite variable của con và job bootstrap có thể plan nhầm root production. Thêm một câu khẳng định <code>TF_ROOT</code> ở đầu job như lớp thứ hai.</li>
+<li>Nhóm account hạn chế (Community Edition) không có protected environment hay deployment approval. Khi đó chốt chặn là: <code>when: manual</code>, protected ref, chỉ Maintainer được push. Quy tắc "người duyệt khác người bấm" là thỏa thuận giữa người với người và không có gì ép buộc.</li>
+</ul>
+
+<h3>Artifact của job plan</h3>
+<ul>
+<li><code>tfplan</code> (nhị phân), <code>plan.txt</code> (đọc được), <code>change-report.md</code>, <code>risk-verdict.txt</code>, <code>infracost-report.txt</code>.</li>
+<li><code>access: developer</code> và <code>expire_in: 7 days</code>. Value secret xuất hiện trong plan nên artifact là dữ liệu nhạy cảm.</li>
+<li>Job plan <code>interruptible: false</code> và dùng <code>resource_group</code> chung với apply để hai job không giữ state lock cùng lúc.</li>
+<li>Job ước tính chi phí lọc bỏ mọi trường <code>secret_string</code> khỏi plan JSON trước khi gửi ra service ngoài, rồi delete file tạm. Việc gửi dữ liệu ra service bên thứ ba cần được phê duyệt riêng.</li>
+</ul>
+</section>
+
+<!-- 15 -->
+<section id="chinh-sach">
+<h2><span class="num">15</span>Scan chính sách và scoring risk</h2>
+<p class="lead">Ba lớp: scan secret, scan config, và scoring chính plan.</p>
+<div class="grid3">
+<div class="card"><h4>trivy secret</h4><p>Scan toàn bộ repo tìm key và token, vì secret có thể bị commit ở bất kỳ đâu. Không có danh sách path.</p></div>
+<div class="card"><h4>trivy config và checkov</h4><p>Scan code IaC theo danh sách path viết ra từng dòng. Thêm module hay root mới là một thay đổi được review trên danh sách này.</p></div>
+<div class="card"><h4>Rego risk</h4><p>Conftest scoring bản plan: LOW, MEDIUM, HIGH, CRITICAL. Verdict gắn với hash của chính file plan.</p></div>
+</div>
+<h3>Quản lý exception (suppression)</h3>
+<ul>
+<li>Exception đặt ở lệnh gọi CI (variable <code>CHECKOV_SKIP</code>, file <code>.trivyignore</code> truyền bằng <code>--ignorefile</code>), không đặt chú thích trong code. Cả hai scanner được nối đối xứng để không bên nào giấu thứ bên kia hiển thị.</li>
+<li>Hệ quả phải chấp nhận: một exception có hiệu lực trên mọi path đang scan, không chỉ một resource. Lý do của từng mục nằm ở sổ quyết định, không nằm trong code.</li>
+<li>Exception không phải khắc phục. Một exception giống hệt một bản sửa nếu lướt qua, nên mỗi mục ghi lý do và test bù đắp nếu có.</li>
+<li>Cẩn thận với bất đối xứng công cụ: <code>trivy</code> chạy với <code>--severity HIGH,CRITICAL</code> còn <code>checkov</code> chạy không lọc, nên checkov làm đỏ pipeline vì thứ trivy không hề báo.</li>
+<li>Scan báo sạch không có nghĩa resource đúng với sản xuất. Ví dụ: một secret tạo với cửa sổ khôi phục bằng 0 ngày delete ngay lập tức, không scanner nào báo.</li>
+</ul>
+<h3>Scoring risk bằng Rego</h3>
+<pre><code><span class="c"># ý tưởng một luật, không phải code đầy đủ</span>
+deny contains msg if {
+  some rc in input.resource_changes
+  rc.type == <span class="s">"aws_db_instance"</span>
+  "delete" in rc.change.actions
+  "create" in rc.change.actions          <span class="c"># replace</span>
+  msg := sprintf(<span class="s">"CRITICAL: %s bị replace"</span>, [rc.address])
+}</code></pre>
+<table>
+<thead><tr><th>Mức</th><th>Ví dụ thay đổi</th></tr></thead>
+<tbody>
+<tr><td>CRITICAL</td><td>Replace database, delete cụm queue, delete bucket state, load balancer chuyển sang internet-facing, làm yếu block public access</td></tr>
+<tr><td>HIGH</td><td>Đổi cỡ database, thay phân phối CDN, thay NAT instance, số thay đổi vượt ngưỡng</td></tr>
+<tr><td>MEDIUM</td><td>Delete thông thường, thay task definition</td></tr>
+<tr><td>LOW</td><td>Tạo mới hoặc đổi tag</td></tr>
+</tbody></table>
+<ul>
+<li>Luật dùng chung nằm ở <code>policy/common</code>, luật riêng từng stack ở <code>policy/&lt;stack&gt;</code>, hai bộ được nạp cùng lúc.</li>
+<li>Mỗi luật có fixture JSON và tên file ghi mức kỳ vọng (ví dụ <code>replace-database.CRITICAL.json</code>). Một job test chạy toàn bộ fixture, nên sửa luật mà làm đổi mức sẽ làm đỏ test.</li>
+<li>Job risk không cần credential AWS: <code>init -backend=false</code> chỉ để nạp schema provider cho <code>show -json</code>.</li>
+</ul>
+</section>
+
+<!-- 16 -->
+<section id="bai-hoc">
+<h2><span class="num">16</span>Bài học thực chiến</h2>
+<p class="lead">Những lỗi đã xảy ra thật. Mở từng mục để xem vì sao nó trông hợp lý và cách sửa.</p>
+<div class="toc-tools" style="margin:0 0 12px"><button class="chip" id="expand2">Mở hết / Thu hết</button></div>
+
+<details><summary>Hai pipeline cho một lần push</summary><div class="body"><p><strong>Trông hợp lý vì:</strong> điều kiện "merge request" và "branch" đọc như hai lựa chọn của một sự kiện.</p><p><strong>Thực tế:</strong> chúng là hai pipeline GitLab tạo từ cùng một lần push. Merge request hiển thị hai trạng thái có thể mâu thuẫn, thời gian chạy nhân đôi.</p><p><strong>Sửa:</strong> chuỗi ba luật có branch <code>when: never</code> ở giữa, định nghĩa một lần và dùng lại qua <code>!reference</code>.</p></div></details>
+
+<details><summary>Protected tag đi thẳng tới apply</summary><div class="body"><p><strong>Trông hợp lý vì:</strong> <code>CI_COMMIT_REF_PROTECTED</code> được đọc là "protected branch".</p><p><strong>Thực tế:</strong> nó đúng với cả protected tag. Ở pipeline tag, <code>CI_COMMIT_BRANCH</code> rỗng, nên các job scan bị bỏ qua nhưng plan và apply vẫn có mặt: một lối tới apply không có policy nào đứng trước.</p><p><strong>Sửa:</strong> mọi luật mang điều kiện <code>$CI_COMMIT_BRANCH</code>, và plan khai báo <code>needs</code> vào các job gate.</p></div></details>
+
+<details><summary>Luật gắn vào default branch không bao giờ khớp</summary><div class="body"><p><strong>Thực tế:</strong> quy ước release giữ default branch rỗng vĩnh viễn, nên ba job plan, apply và bootstrap không hiện trên bất kỳ ref nào. Pipeline đầu chỉ có năm job scan và nhìn có vẻ xanh.</p><p><strong>Sửa:</strong> bỏ hẳn <code>$CI_DEFAULT_BRANCH</code>; apply yêu cầu protected ref, plan và bootstrap chạy ở bất kỳ branch nào có điều kiện thay đổi.</p></div></details>
+
+<details><summary>Gate trivy đỏ vì cờ bị gỡ, scan thành không scan</summary><div class="body"><p><strong>Trông hợp lý vì:</strong> cờ <code>--no-progress</code> có ở các version trước.</p><p><strong>Thực tế:</strong> ở version pin, đó là lỗi tham số và job thoát trước khi scan thứ gì. Nó đọc như một lỗi chính sách trong khi tư thế bảo mật chưa hề được đo. Gỡ cờ thì gate bật lên và lập tức báo một phát hiện mức cao ở bucket state.</p><p><strong>Bài học:</strong> khi một job scan lỗi, hãy kiểm tra nó có thực sự scan không (bảng Report Summary, số lượng file). Nếu tắt cờ phải ghi lý do bên cạnh để không ai thêm lại.</p></div></details>
+
+<details><summary>Child pipeline plan nhầm root</summary><div class="body"><p><strong>Thực tế:</strong> child pipeline nhận variable <code>TF_ROOT</code> của cha, vốn ưu tiên cao hơn variable con tự khai. Job plan của bootstrap chạy trên root sản xuất. Khi đó chỉ một việc tình cờ ngăn tai nạn: các variable kích thước chưa có value.</p><p><strong>Sửa hai lớp:</strong> <code>inherit: variables: false</code> ở trigger, và job khẳng định <code>TF_ROOT</code> ở bước đầu.</p><p><strong>Bài học:</strong> một cơ chế an toàn hoạt động vì lý do khác là một cơ chế sắp variable mất.</p></div></details>
+
+<details><summary>Plan lưu bị "stale"</summary><div class="body"><p><strong>Thực tế:</strong> retry job apply sau khi một lần apply trước đã ghi state làm serial tăng. Terraform từ chối file plan cũ. Chạy lại job plan để có artifact mới. Đây là hành vi đúng: nó chặn bạn áp dụng một kế hoạch tính trên trạng thái không còn tồn tại.</p></div></details>
+
+<details><summary>Apply lỗi giữa chừng do permission boundary</summary><div class="body"><p><strong>Thực tế:</strong> identity CI bị boundary chặn <code>iam:CreateRole</code>, rồi <code>iam:TagInstanceProfile</code>. <code>default_tags</code> khiến tag vẫn lan xuống dù đã bỏ tag trong từng resource. Mười tám resource đã tạo trước khi lỗi.</p><p><strong>Sửa:</strong> mở rộng boundary đúng phạm vi path <code>/tf-managed/</code>, plan lại để có artifact khớp serial mới, rồi apply.</p></div></details>
+
+<details><summary>Đọc nhầm lý do "No changes" khi chưa chạy</summary><div class="body"><p><strong>Thực tế:</strong> một tài liệu ghi pipeline "chưa từng chạy" trong khi đã có pipeline thất bại, và ghi code "chưa commit" trong khi đã commit từ hôm trước. Những tuyên bố về trạng thái phải được đo (đọc API, đọc log), không suy ra từ trí nhớ.</p></div></details>
+
+<details><summary>Tái cấu trúc module sau khi có state</summary><div class="body"><p><strong>Thực tế:</strong> root có 27 resource thô được chuyển vào bốn module khi chưa apply. Số resource 27 trước và sau, chỉ di chuyển. Cái giá bằng không vì chưa có state. Sau apply, mỗi địa chỉ cần một <code>moved</code> block.</p></div></details>
+
+<details><summary>Một apply overwrite secret người khác điền</summary><div class="body"><p><strong>Thực tế:</strong> thêm một key vào secret config làm Terraform ghi version mới từ tfvars, trong đó các value do nhóm khác quản lý đang để trống. Ứng dụng mất kết nối ở lần khởi động sau.</p><p><strong>Quy tắc:</strong> infrastructure chỉ tạo key rỗng cho value người khác điền. Trước mỗi apply, soát mọi <code>aws_secretsmanager_secret_version</code> được cập nhật hay replace. Gặp thì dừng và hỏi chủ sở hữu.</p></div></details>
+
+<details><summary>Một apply làm lùi version image đang chạy</summary><div class="body"><p><strong>Thực tế:</strong> service ECS bỏ qua <code>task_definition</code> vì job triển khai quản lý nó. Một apply đăng ký bản task definition mới mang tag cũ trong config, rồi có người trỏ service vào đó. Environment chạy bản cũ trong khi image registry và pipeline đã giữ bản mới.</p><p><strong>Quy tắc:</strong> trước khi sửa file ECS, đọc tag thật đang chạy từ API rồi cập nhật variable. Không đọc từ <code>terraform plan</code> vì plan không hiện nó.</p></div></details>
+
+<details><summary>Pin AMI: image mới tạo chuỗi replace</summary><div class="body"><p><strong>Thực tế:</strong> tra AMI "mới nhất" qua SSM hay <code>most_recent</code> làm plan tự đề xuất thay máy khi nhà cung cấp release image mới.</p><p><strong>Sửa:</strong> truyền AMI tường minh, đọc từ máy đang chạy. Nâng AMI là một thay đổi config có plan được duyệt.</p></div></details>
+
+<details><summary>Assertion trên value "known after apply"</summary><div class="body"><p><strong>Thực tế:</strong> assertion trên tập <code>route</code> của route table hay <code>subnet_id</code> của instance lỗi "Unknown condition value" ở plan-mode.</p><p><strong>Sửa:</strong> viết lại trên thuộc tính đã config tương đương, hoặc ghi rõ điều gì chưa được kiểm chứng.</p></div></details>
+</section>
+
+<!-- 17 -->
+<section id="checklist">
+<h2><span class="num">17</span>Checklist và bài tập</h2>
+<p class="lead">Dùng để tự soát trước khi mở merge request và để kiểm tra người mới.</p>
+<div class="grid2">
+<div class="card"><h4>Trước khi mở merge request</h4>
+<ul class="check">
+<li><code>terraform fmt -recursive</code> sạch</li>
+<li><code>validate</code> và <code>test</code> xanh cục bộ</li>
+<li>Không có state, plan, tfvars thật, key trong diff</li>
+<li>Lock file được commit nếu nâng provider</li>
+<li>Variable mới có description, type, validation</li>
+<li>Value an toàn là default trong code, secret không nằm trong code</li>
+<li>Resource chuyển module có <code>moved</code> block</li>
+<li>README module và tài liệu quyết định được cập nhật cùng lượt</li>
+</ul></div>
+<div class="card"><h4>Trước khi bấm apply</h4>
+<ul class="check">
+<li>Đã đọc cả plan, không chỉ dòng tổng</li>
+<li>Không có <code>replace</code> ở resource có dữ liệu</li>
+<li>Không có secret version bị cập nhật ngoài dự kiến</li>
+<li>Risk verdict là PASS và khớp hash file plan</li>
+<li><code>TF_ROOT</code> và account in ra đúng</li>
+<li>Không có lần chạy nào khác đang giữ lock</li>
+<li>Có người thứ hai đã xem plan (thỏa thuận, không có gì ép)</li>
+</ul></div>
+</div>
+<h3>Bài tập</h3>
+<ol class="plain">
+<li><strong>Dựng root nhỏ.</strong> Tạo một root có <code>terraform.tf</code>, <code>backend.hcl</code>, một module <code>networking</code> và một test kiểm tra value mặc định cùng <code>expect_failures</code> cho một <code>validation</code>.</li>
+<li><strong>Bootstrap.</strong> Mô tả bằng lời vì sao không thể tạo bucket state bằng đúng root dùng bucket đó. Vẽ lại ba bước của Hình 3 và nêu điều gì xảy ra nếu bỏ gate variable ở import block.</li>
+<li><strong>Đọc plan.</strong> Cho một plan có dòng <code>aws_lb.mqtt must be replaced (internal = true to false)</code>. Phân loại mức risk, nói vì sao nó cắt mạng và viết một luật Rego bắt nó.</li>
+<li><strong>Viết rules.</strong> Viết rules cho job apply chỉ chạy trên protected branch, loại pipeline tag và merge request. Giải thích vì sao không dùng <code>$CI_DEFAULT_BRANCH</code>.</li>
+<li><strong>Sự cố.</strong> Một retry apply báo <code>Saved plan is stale</code>. Liệt kê ba bước xử lý đúng thứ tự và ba việc không được làm.</li>
+<li><strong>Thêm stack.</strong> Liệt kê các file cần thêm khi thêm một stack thứ hai vào pipeline (file stack, policy, fixture, variable có phạm vi, path scan).</li>
+</ol>
+
+<h3>Thuật ngữ</h3>
+<table>
+<thead><tr><th>Thuật ngữ</th><th>Nghĩa</th></tr></thead>
+<tbody>
+<tr><td>Root</td><td>Directory có backend và là nơi chạy lệnh Terraform, một state</td></tr>
+<tr><td>Module</td><td>Directory resource dùng lại, được root gọi bằng <code>module</code> block</td></tr>
+<tr><td>Backend</td><td>Nơi lưu state (ở đây là S3) và cơ chế lock</td></tr>
+<tr><td>Partial configuration</td><td>Backend block rỗng, value truyền qua <code>-backend-config</code></td></tr>
+<tr><td>Lock file</td><td><code>.terraform.lock.hcl</code>, pin provider</td></tr>
+<tr><td>Plan-mode test</td><td><code>terraform test</code> chạy <code>command = plan</code> với provider giả</td></tr>
+<tr><td>Protected ref</td><td>Branch hoặc tag GitLab chỉ Maintainer mới push, và là nơi nhận variable protected</td></tr>
+<tr><td>Verdict</td><td>Kết quả scoring risk, gắn với hash của file plan</td></tr>
+<tr><td>Bootstrap</td><td>Việc tạo infrastructure nền (bucket state) trước khi các root khác dùng được</td></tr>
+</tbody></table>
+<p style="font-size:13px;color:var(--muted)">Nguồn: cấu trúc <code>terraform/</code> của repo mẫu và ghi chép quyết định của hai dự án Terraform đang chạy. Mọi tên và định danh riêng đã được thay bằng ký hiệu chung.</p>
+</section>
+</main>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  try{var t=localStorage.getItem('tf-theme');if(t)root.setAttribute('data-theme',t)}catch(e){}
+  document.getElementById('theme').addEventListener('click',function(){
+    var dark=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme: dark)').matches);
+    var n=dark?'light':'dark';root.setAttribute('data-theme',n);
+    try{localStorage.setItem('tf-theme',n)}catch(e){}
+  });
+  var nb=document.getElementById('navbtn');
+  nb.addEventListener('click',function(){document.body.classList.toggle('navopen')});
+  var links=[].slice.call(document.querySelectorAll('nav.toc a'));
+  links.forEach(function(a){a.addEventListener('click',function(){document.body.classList.remove('navopen')})});
+  var map={};links.forEach(function(a){map[a.getAttribute('href').slice(1)]=a});
+  var secs=[].slice.call(document.querySelectorAll('main section'));
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(l){l.classList.remove('on')});
+        var a=map[e.target.id];if(a){a.classList.add('on');a.scrollIntoView({block:'nearest'})}
+      }
+    });
+  },{rootMargin:'-10% 0px -80% 0px'});
+  secs.forEach(function(s){io.observe(s)});
+  [].forEach.call(document.querySelectorAll('[data-tabs]'),function(box){
+    var btns=[].slice.call(box.querySelectorAll('.tabbar button'));
+    var panes=[].slice.call(box.querySelectorAll('.tabpane'));
+    btns.forEach(function(b,i){b.addEventListener('click',function(){
+      btns.forEach(function(x,j){x.setAttribute('aria-selected',j===i?'true':'false');panes[j].classList.toggle('on',j===i)});
+    })});
+  });
+  function toggleAll(sel,btn){
+    var ds=[].slice.call(document.querySelectorAll(sel));
+    var open=ds.some(function(d){return !d.open});
+    ds.forEach(function(d){d.open=open});
+  }
+  document.getElementById('expand').addEventListener('click',function(){toggleAll('details')});
+  document.getElementById('expand2').addEventListener('click',function(){toggleAll('details')});
+})();
+</script>
+</body>
+</html>

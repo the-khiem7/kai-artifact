@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Pipeline Terraform trên GitLab CI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one column; diagram on a fixed white "drawing sheet" (AWS icon colours need it), page chrome follows the theme. */
+:root{
+  --bg:#F4F6F8; --fg:#16202B; --muted:#5A6573; --line:#D8DEE5; --card:#FFFFFF; --accent:#E07A00;
+  --sheet:#FFFFFF; --r-s:8px; --r-l:14px;
+  --scan:#2563EB; --plan:#E07A00; --review:#7C3AED; --apply:#0E8F7E; --boot:#64748B;
+  --sans:"IBM Plex Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F151C; --fg:#E6EBF0; --muted:#9AA6B3; --line:#2A3540; --card:#17202A; --accent:#F59E0B; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0F151C; --fg:#E6EBF0; --muted:#9AA6B3; --line:#2A3540; --card:#17202A; --accent:#F59E0B; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:20px 48px;display:grid;gap:16px}
+header h1{font-size:24px;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance;text-align:center}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.sheet,#pop,details,#notes{border-radius:var(--r-l)}
+.sheet{position:relative;background:var(--sheet);border:1px solid var(--line);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.sheet svg{display:block;width:100%;min-width:1100px;height:auto}
+.hint{font-size:13px;color:var(--muted);margin:-8px 0 0}
+details{background:var(--card);border:1px solid var(--line);padding:0 16px}
+summary{cursor:pointer;font-weight:600;padding:14px 0;min-height:24px}
+details ol,details ul{margin:0 0 14px;padding-left:20px}
+details li{margin:4px 0}
+
+/* control bar: a floating media-style player at the bottom - Back / caption / Next, the scrubber on its lower edge; the flow chips sit in the rail on the left */
+#bar{position:fixed;left:16px;right:16px;bottom:16px;z-index:20;width:min(980px,calc(100% - 32px));margin:0 auto;display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;gap:0 10px;padding:6px 10px 0;border:1px solid var(--line);border-radius:var(--r-l);
+  background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(6px);box-shadow:0 8px 24px rgba(15,21,28,.16)}
+.steps{display:contents}
+.chiprow{position:sticky;top:8px;z-index:20;justify-self:center;max-width:100%;min-width:0;display:flex;align-items:center;gap:6px;padding:4px;border:1px solid var(--line);border-radius:var(--r-l);
+  background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(6px);box-shadow:0 6px 18px rgba(15,21,28,.12)}
+.chips{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.chip{flex:0 0 auto;font:500 13px var(--sans);border:2px solid var(--c,var(--fg));background:transparent;color:var(--fg);border-radius:var(--r-s);
+  padding:0 10px;height:32px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip i{display:none}
+.chip .n{font:700 13px var(--mono)}
+.chip .n::after{content:" \00B7"}
+#f-all{--c:var(--fg)}
+#f-all .n::after{content:""}
+.chip[aria-pressed="true"]{background:var(--c);color:#fff}
+#f-all[aria-pressed="true"]{color:var(--bg)}
+#cap{margin:0;min-width:0;font-size:14px;line-height:1.35;border-left:4px solid var(--c,var(--line));padding:2px 0 2px 10px}
+.stepl,.stepr{display:flex}
+.tool{min-height:40px;min-width:40px;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:var(--r-s);padding:0 12px;
+  font:500 14px var(--sans);cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.media{width:40px;height:40px;padding:0;border-radius:50%}
+.media svg{width:16px;height:16px;fill:currentColor}
+.tool[aria-pressed="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.tool:disabled{opacity:.4;cursor:default}
+.chip:focus-visible,.tool:focus-visible,#scrub:focus-visible,#cap:focus-visible,.nform textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#scrub{grid-column:1/-1;width:100%;margin:0;height:14px;accent-color:var(--c,var(--muted))}
+/* page tools: Note, Pause and Night at the end of the chip bar */
+.tools{display:flex;gap:4px;flex:0 0 auto;padding-left:6px;border-left:1px solid var(--line)}
+.tools .tool{width:32px;min-height:32px;height:32px;padding:0}
+
+/* tooltips on hover and keyboard focus; Escape hides them */
+.tip{position:relative}
+.tip::after{content:attr(data-tip);position:absolute;right:0;top:calc(100% + 8px);z-index:40;pointer-events:none;background:var(--fg);color:var(--bg);
+  font:500 12.5px/1.35 var(--sans);padding:6px 9px;border-radius:var(--r-s);width:max-content;max-width:240px;text-align:left;opacity:0;visibility:hidden;transition:opacity .12s .35s}
+#bar .tip::after{top:auto;bottom:calc(100% + 8px)}
+.stepl .tip::after{right:auto;left:0}
+.tip:hover::after,.tip:focus-visible::after{opacity:1;visibility:visible}
+body.notip .tip::after{opacity:0;visibility:hidden}
+@media (hover:none){.tip::after{display:none}}
+
+/* service card: a popover next to the icon */
+#pop{position:absolute;z-index:18;width:300px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-top:4px solid var(--accent);
+  box-shadow:0 10px 30px rgba(0,0,0,.18);padding:14px 16px}
+#pop .x{position:absolute;right:6px;top:6px;width:36px;height:36px;border:0;background:none;color:var(--muted);font-size:22px;cursor:pointer;border-radius:6px}
+#pop .x:focus-visible{outline:2px solid var(--accent)}
+#detail h2{margin:0;font-size:17px;padding-right:32px}
+#detail .aws{font:500 13px var(--mono);color:var(--muted);margin-top:2px}
+#detail p{margin:8px 0 0}
+
+/* notes, kept in this browser */
+.sheet.pin{cursor:crosshair}
+.note,.nform{position:absolute;z-index:16;transform:translate(-50%,-100%);background:#FFF3B0;color:#16202B;border:1px solid #E2C64A;border-radius:var(--r-s) var(--r-s) var(--r-s) 0;box-shadow:0 6px 16px rgba(0,0,0,.15)}
+.note{padding:6px 8px;font-size:13px;max-width:220px}
+.note b{font:700 12px var(--mono);margin-right:4px}
+.note button{border:0;background:none;cursor:pointer;color:#6b5a00;font-size:15px;min-width:28px;min-height:28px}
+.nform{padding:8px;display:grid;gap:6px;width:240px}
+.nform label{font:600 12px var(--sans)}
+.nform textarea{display:block;width:100%;box-sizing:border-box;margin-top:4px;font:14px var(--sans);border:1px solid #C9A100;border-radius:6px;padding:6px;resize:vertical}
+.nform div{display:flex;gap:6px}
+.nform .tool{min-height:34px;background:#fff;color:#16202B;border-color:#C9A100}
+#notes{background:var(--card);border:1px solid var(--line);padding:10px 16px 10px 36px;margin:0}
+#notes:empty{display:none}
+
+/* diagram */
+svg text{font-family:var(--sans)}
+.gl{font-size:13px;font-weight:600}
+.gs{font-size:12px;font-weight:400;fill:#5A6573}
+.nl{font-size:13px;font-weight:600;fill:#16202B}
+.ns{font-size:11.5px;fill:#545B64}
+.ns2{font-size:12.5px;fill:#3A4450}
+.poolbox{fill:#FFFFFF;stroke:#E8C9A8;stroke-width:1}
+.bedbox{fill:#F7F2FF;stroke:#8C4FFF;stroke-width:1.6}
+.hit{fill:transparent}
+.tile{fill:none}
+.node{cursor:pointer;outline:none;transition:opacity .2s}
+.node:hover .hit,.node:focus-visible .hit{fill:rgba(224,122,0,.08)}
+.node:focus-visible .hit{stroke:var(--accent);stroke-width:2}
+.node.sel .hit{fill:rgba(224,122,0,.14);stroke:#E07A00;stroke-width:1.2}
+.node.sel .poolbox{stroke:#E07A00;stroke-width:2}
+.trunk{stroke:#7D8998;stroke-width:5;fill:none;stroke-linecap:round}
+.flow{fill:none;stroke-width:2.2;transition:opacity .2s}
+body[data-flow] .flow{opacity:.1}
+path.f-scan{stroke:var(--scan)} .mk-scan{fill:var(--scan)} .c-scan{fill:var(--scan)} .b-scan{fill:var(--scan)} .f-scan .flbox{stroke:var(--scan)}
+path.f-plan{stroke:var(--plan)} .mk-plan{fill:var(--plan)} .c-plan{fill:var(--plan)} .b-plan{fill:var(--plan)} .f-plan .flbox{stroke:var(--plan)}
+path.f-review{stroke:var(--review)} .mk-review{fill:var(--review)} .c-review{fill:var(--review)} .b-review{fill:var(--review)} .f-review .flbox{stroke:var(--review)}
+path.f-apply{stroke:var(--apply)} .mk-apply{fill:var(--apply)} .c-apply{fill:var(--apply)} .b-apply{fill:var(--apply)} .f-apply .flbox{stroke:var(--apply)}
+path.f-boot{stroke:var(--boot)} .mk-boot{fill:var(--boot)} .c-boot{fill:var(--boot)} .b-boot{fill:var(--boot)} .f-boot .flbox{stroke:var(--boot)}
+body[data-flow="scan"] .f-scan,body[data-flow="plan"] .f-plan,body[data-flow="review"] .f-review,body[data-flow="apply"] .f-apply,body[data-flow="boot"] .f-boot{opacity:1;stroke-width:3.2}
+body[data-flow="scan"] .f-scan .flbox,body[data-flow="plan"] .f-plan .flbox,body[data-flow="review"] .f-review .flbox,body[data-flow="apply"] .f-apply .flbox,body[data-flow="boot"] .f-boot .flbox{opacity:1}
+.flabel{font-size:12px;font-weight:600;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+.badge circle{stroke:#fff;stroke-width:2}
+.bt{font-size:12px;font-weight:700;fill:#fff}
+
+/* motion: a pressed flow lights its icons and marches with packets; a hovered icon lights its own arrows; the current step marches */
+body[data-flow] .node{opacity:.35}
+body[data-flow] .node.lit{opacity:1}
+path.flow.on,.sheet.nb path.flow.link,.sheet.walk path.flow.now{stroke-dasharray:10 6;animation:march 1s linear infinite;filter:drop-shadow(0 0 3px currentColor)}
+/* start from 0, not from the static dash offset, so each loop moves exactly one pattern and never jumps */
+@keyframes march{from{stroke-dashoffset:0}to{stroke-dashoffset:-16}}
+/* a highlighted arrow's label sits still in a box instead of glowing */
+.flbox{fill:#fff;stroke:currentColor;stroke-width:1.2;opacity:0;transition:opacity .2s}
+.sheet.nb .fl.link .flbox,.sheet.walk .fl.seen .flbox{opacity:1}
+.pkt{filter:drop-shadow(0 0 4px currentColor)}
+.sheet.nb .flow{opacity:.08!important}
+.sheet.nb .node{opacity:.3}
+.sheet.nb .node.me,.sheet.nb .node.near{opacity:1}
+.sheet.nb .flow.link{opacity:1!important;stroke-width:3.2}
+.sheet.nb .badge.link circle{stroke-width:2}
+/* steps: later arrows and their labels and badges wait; unreached icons fade */
+.sheet.walk .flow{opacity:0!important}
+.sheet.walk .flow.seen:not(path){opacity:1!important}
+.sheet.walk path.flow.past{opacity:.4!important}
+.sheet.walk path.flow.now{opacity:1!important;stroke-width:3.4}
+.sheet.walk .node{opacity:1}
+.sheet.walk .node.off{opacity:.12}
+
+body.still .flow{animation-play-state:paused}
+
+/* Night: an opt-in dark sheet; every icon sits on a white tile so AWS colours still read on white */
+body.night{background:#05070D}
+body.night #bar,body.night .chiprow{background:rgba(5,7,13,.85);border-color:#22304A}
+body.night .sheet{background:radial-gradient(ellipse at 30% 0%,#13254A 0%,#070B16 60%);border-color:#1C2A44}
+body.night .sheet svg rect:not(.hit):not(.tile){fill:transparent!important;stroke:#3A5A8C!important}
+body.night .sheet svg text{fill:#C9D6EC!important}
+body.night .gs,body.night .ns{fill:#7F93B4!important}
+body.night .tile{fill:#fff}
+body.night .flow{filter:drop-shadow(0 0 3px currentColor) drop-shadow(0 0 8px currentColor)}
+body.night .flabel{stroke:#070B16}
+body.night .poolbox{fill:transparent}
+
+/* wide screens: clear space under the floating player */
+@media (min-width:701px){
+  .wrap{max-width:none;padding-bottom:calc(var(--dh,60px) + 48px)}
+}
+
+/* vertical rail (opt-in, wide screens): the committed rail - numbered squares on the left that open to the flow name,
+   the switch top-left, and Note, Pause and Night bottom-left */
+@media (min-width:701px){
+  /* display:contents drops the slim bar's own box, so its backdrop-filter cannot become the containing block of the fixed rail */
+  body.rail .chiprow{display:contents}
+  body.rail .wrap{max-width:none;padding-left:88px}
+  body.rail #bar{left:88px;width:min(980px,calc(100% - 104px))}
+  body.rail .chips{position:fixed;left:14px;top:calc(50% + 10px);transform:translateY(-50%);flex:none;flex-direction:column;overflow:visible;gap:10px;z-index:21}
+  body.rail .chip{width:44px;height:44px;min-height:44px;padding:0;overflow:hidden;white-space:nowrap;background:var(--card);border:2.5px solid var(--c,var(--muted));transition:width .22s ease}
+  body.rail #f-all{--c:var(--muted)}
+  body.rail .chip i,body.rail .chip .n::after{display:none}
+  body.rail .chip .n{flex:0 0 39px;text-align:center;font:700 14px var(--mono)}
+  body.rail .chip .t{opacity:0;transition:opacity .15s;padding-right:16px}
+  body.rail .chip:hover,body.rail .chip:focus-visible{width:240px}
+  body.rail .chip:hover .t,body.rail .chip:focus-visible .t{opacity:1}
+  body.rail .chip[aria-pressed="true"]{background:var(--c,var(--muted));color:#fff;box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--c,var(--muted))}
+  body.rail #f-all[aria-pressed="true"]{color:#fff}
+  body.rail .tools{position:fixed;left:16px;bottom:16px;z-index:22;flex-direction:column;gap:8px;padding:0;border:0}
+  body.rail #railbtn{position:fixed;left:16px;top:16px}
+  body.rail .tools .tool{width:44px;height:44px;min-height:44px;box-shadow:0 4px 14px rgba(15,21,28,.12)}
+  body.rail .tools .tip::after{right:auto;left:calc(100% + 10px);top:50%;transform:translateY(-50%)}
+}
+
+/* phone: the player floats at the bottom, the flow chips stay under the title, service card floating above it */
+@media (max-width:700px){
+  .wrap{padding-inline:12px;gap:12px;padding-bottom:calc(var(--dh,200px) + 28px)}
+  #bar{left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));width:auto;margin:0;z-index:30;display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:8px 8px 4px;
+    background:color-mix(in srgb,var(--card) 94%,transparent)}
+  .steps{display:flex;order:1;gap:6px;align-items:center}#scrub{order:2}
+  #cap{flex:1 1 0;min-width:0;font-size:13.5px;cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  #cap.open{display:block;max-height:40vh;overflow:auto}
+  .media{width:44px;height:44px}
+  .chiprow{justify-self:stretch;top:6px}
+  .chip{width:36px;height:36px;padding:0;justify-content:center;flex:0 0 36px}
+  .chip .t,.chip .n::after{display:none}
+  .tools .tool{width:36px;min-height:36px;height:36px}
+  #nt,#railbtn{display:none!important}
+  #pop{position:fixed!important;left:12px!important;right:12px;top:auto!important;bottom:calc(var(--dh,200px) + 24px);width:auto;max-height:45vh;overflow:auto;z-index:31}
+}
+</style>
+</head><body><main class="wrap">
+  <header>
+    <h1>Pipeline Terraform trên GitLab CI</h1>
+  </header>
+
+  <div class="chiprow" id="chipbar">
+    <div class="chips" role="group" aria-label="Highlight a flow">
+      <button class="chip" id="f-all" data-f="" aria-pressed="true" aria-label="All flows"><span class="n">All</span><span class="t">flows</span></button>
+      <button class="chip" id="f-scan" data-f="scan" aria-pressed="false" aria-label="Flow 1: Push và scan"><i style="background:var(--scan)"></i><span class="n">1</span><span class="t">Push và scan</span></button>
+    <button class="chip" id="f-plan" data-f="plan" aria-pressed="false" aria-label="Flow 2: Manual plan"><i style="background:var(--plan)"></i><span class="n">2</span><span class="t">Manual plan</span></button>
+    <button class="chip" id="f-review" data-f="review" aria-pressed="false" aria-label="Flow 3: Review result"><i style="background:var(--review)"></i><span class="n">3</span><span class="t">Review result</span></button>
+    <button class="chip" id="f-apply" data-f="apply" aria-pressed="false" aria-label="Flow 4: Manual apply"><i style="background:var(--apply)"></i><span class="n">4</span><span class="t">Manual apply</span></button>
+    <button class="chip" id="f-boot" data-f="boot" aria-pressed="false" aria-label="Flow 5: One-time bootstrap"><i style="background:var(--boot)"></i><span class="n">5</span><span class="t">One-time bootstrap</span></button>
+    </div>
+    <div class="tools" role="toolbar" aria-label="Notes, motion and theme">
+  <button type="button" class="tool tip" id="railbtn" aria-label="Vertical rail" aria-pressed="false" data-tip="Switch the flows between the bar and a vertical rail on the left">&#8645;</button>
+  <button type="button" class="tool tip" id="nt" aria-label="Add a note" aria-pressed="false" data-tip="Add a note: then click a spot or press Enter on an icon">&#9998;</button>
+  <button type="button" class="tool tip" id="motion" aria-label="Pause motion" aria-pressed="false" data-tip="Pause or resume moving dashes and packets"><span aria-hidden="true">&#10074;&#10074;</span></button>
+  <button type="button" class="tool tip" id="neon" aria-label="Night mode" aria-pressed="false" data-tip="Night mode: dark sheet, glowing arrows">&#9790;</button>
+    </div>
+  </div>
+
+  <div id="bar">
+    <div class="steps">
+      <span class="stepl"><button type="button" class="tool media tip" id="pv" aria-label="Previous arrow" data-tip="Previous arrow (back to overview from arrow 1)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button></span>
+      <p id="cap" aria-live="polite">Code Terraform chỉ chạy trong runner của GitLab. Kỹ sư push code, pipeline scan và kiểm tra tự động, plan và apply là hai job manual, state nằm trong S3.</p>
+      <span class="stepr">
+        <button type="button" class="tool media tip" id="nx" aria-label="Next arrow" data-tip="Next arrow - starts the walk from arrow 1"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11 2h2v12h-2zM2 2l8 6-8 6z"/></svg></button>
+      </span>
+    </div>
+    <input id="scrub" type="range" min="0" max="1" value="0" aria-label="Arrow" title="Drag to walk the arrows; far left shows them all">
+    <span id="hop" class="sr" aria-live="polite"></span>
+  </div>
+
+  <div class="sheet"><svg id="dia" viewBox="0 0 1480 700" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Pipeline Terraform trên GitLab CI"><defs><symbol id="i-group-corporate-data-center" viewBox="0 0 40 40"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><rect fill="#7D8998" x="0" y="0" width="40" height="40"></rect><path d="M12,17 L15.5,17 C15.776,17 16,16.776 16,16.5 L16,7 L23,7 L23,16.5 C23,16.776 23.224,17 23.5,17 L27,17 L27,33 L12,33 L12,17 Z M28,33.5 L28,16.5 C28,16.224 27.776,16 27.5,16 L24,16 L24,6.5 C24,6.224 23.776,6 23.5,6 L15.5,6 C15.224,6 15,6.224 15,6.5 L15,16 L11.5,16 C11.224,16 11,16.224 11,16.5 L11,33.5 C11,33.776 11.224,34 11.5,34 L27.5,34 C27.776,34 28,33.776 28,33.5 L28,33.5 Z M24,31 L25,31 L25,29 L24,29 L24,31 Z M19,31 L20,31 L20,29 L19,29 L19,31 Z M14,31 L15,31 L15,29 L14,29 L14,31 Z M24,27 L25,27 L25,24 L24,24 L24,27 Z M19,27 L20,27 L20,24 L19,24 L19,27 Z M14,27 L15,27 L15,24 L14,24 L14,27 Z M24,22 L25,22 L25,19 L24,19 L24,22 Z M19,12 L20,12 L20,9 L19,9 L19,12 Z M19,17 L20,17 L20,14 L19,14 L19,17 Z M19,22 L20,22 L20,19 L19,19 L19,22 Z M14,22 L15,22 L15,19 L14,19 L14,22 Z" fill="#FFFFFF"></path></g></symbol><symbol id="i-group-aws-cloud" viewBox="0 0 40 40"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><rect fill="#242F3E" x="0" y="0" width="40" height="40"></rect><path d="M28.993,27.9952689 L11.487,27.9762689 C9.121,27.9742689 7.154,26.1292689 7.012,23.7752689 C7.004,23.6522689 7,23.5262689 7,23.3972689 C7,20.2992689 9.091,19.2872689 10.337,18.9592689 C10.577,18.8962689 10.735,18.6662689 10.707,18.4192689 C10.676,18.1492689 10.659,17.8752689 10.659,17.5962689 C10.659,15.1322689 12.308,12.4822689 14.415,11.5632689 C15.359,11.1502689 16.232,10.9862689 17.023,10.9862689 C19.276,10.9862689 20.867,12.3152689 21.561,13.0332689 C22.329,13.8262689 22.927,14.8382689 23.34,16.0422689 C23.4,16.2192689 23.555,16.3472689 23.74,16.3742689 C23.918,16.4012689 24.109,16.3232689 24.219,16.1712689 C24.807,15.3502689 25.766,14.9822689 26.659,15.2392689 C27.782,15.5602689 28.516,16.7272689 28.62,18.3072689 C28.578,18.5762689 28.759,18.8292689 29.027,18.8772689 C30.222,19.0892689 33,19.9572689 33,23.4402689 C33,27.5892689 29.114,27.9822689 28.993,27.9952689 M29.594,17.9742689 C29.379,16.0672689 28.4,14.6962689 26.934,14.2782689 C25.899,13.9822689 24.811,14.2452689 23.989,14.9502689 C23.553,13.9362689 22.979,13.0602689 22.28,12.3382689 C20.023,10.0052689 16.933,9.37226889 14.014,10.6462689 C11.531,11.7302689 9.659,14.7182689 9.659,17.5962689 C9.659,17.7702689 9.665,17.9432689 9.676,18.1142689 C8.319,18.5732689 6,19.8752689 6,23.3972689 C6,23.5492689 6.004,23.6962689 6.014,23.8382689 C6.188,26.7162689 8.593,28.9732689 11.486,28.9762689 L29.034,28.9932689 C29.084,28.9892689 34,28.5192689 34,23.4402689 C34,19.5022689 31.003,18.3142689 29.594,17.9742689" fill="#FFFFFF"></path></g></symbol><symbol id="i-group-region" viewBox="0 0 40 40"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><rect fill="#00A4A6" x="0" y="0" width="40" height="40"></rect><path d="M14,20.026 L14,11.026 L29.293,11.026 L25.146,15.172 C24.951,15.368 24.951,15.684 25.146,15.88 L29.293,20.026 L14,20.026 Z M26.207,15.526 L30.854,10.88 C30.996,10.736 31.039,10.522 30.962,10.335 C30.885,10.148 30.702,10.026 30.5,10.026 L14,10.026 L14,8.97 C14.596,8.76 15.026,8.198 15.026,7.531 C15.026,6.687 14.34,6 13.495,6 C12.65,6 11.963,6.687 11.963,7.531 C11.963,8.201 12.398,8.766 13,8.973 L13,33.026 L10,33.026 L10,34.026 L17,34.026 L17,33.026 L14,33.026 L14,21.026 L30.5,21.026 C30.702,21.026 30.885,20.904 30.962,20.717 C31.039,20.53 30.996,20.316 30.854,20.172 L26.207,15.526 Z" fill="#FFFFFF"></path></g></symbol><symbol id="i-group-virtual-private-cloud-vpc" viewBox="0 0 40 40"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><rect fill="#8C4FFF" x="0" y="0" width="40" height="40"></rect><path d="M30.9707,21.0293596 L28.0267,19.7663596 L28.0267,30.2553596 C30.5717,29.9033596 30.9587,27.2873596 30.9747,27.1683596 L30.9707,21.0293596 Z M27.0267,30.2693596 L27.0267,19.7593596 L23.9917,21.0323596 L23.9917,27.2333596 C24.0047,27.2873596 24.4367,30.0003596 27.0267,30.2693596 L27.0267,30.2693596 Z M27.3327,18.5473596 C27.4567,18.4943596 27.5987,18.4953596 27.7237,18.5483596 L31.6677,20.2403596 C31.8517,20.3193596 31.9707,20.4993596 31.9707,20.6993596 L31.9707,27.2333596 C31.7877,28.6803596 30.6137,31.2963596 27.4437,31.2963596 C24.3687,31.2963596 23.1897,28.6843596 22.9957,27.3023596 L22.9917,20.6993596 C22.9917,20.4983596 23.1127,20.3163596 23.2977,20.2383596 L27.3327,18.5473596 Z M32.9827022,19.1843596 L27.5217,16.7783596 L21.9917,19.1053596 L21.9917,26.2333596 C21.9907,26.2753596 21.9377,29.1013596 23.6487,30.8563596 C24.5657,31.7973596 25.8427,32.2753596 27.4437,32.2753596 C29.0457,32.2753596 30.3307,31.7963596 31.2627,30.8533596 C32.9977,29.0953596 32.9827022,26.2683596 32.9827022,26.2403596 L32.9827022,19.1843596 Z M31.9797,31.5503596 C30.8527,32.6943596 29.3257,33.2753596 27.4437,33.2753596 C25.5597,33.2753596 24.0397,32.6943596 22.9267,31.5483596 C20.9217,29.4853596 20.9877,26.3513596 20.9917,26.2193596 L20.9917,18.7733596 C20.9917,18.5723596 21.1117,18.3903596 21.2967,18.3123596 L27.3317,15.7723596 C27.4587,15.7203596 27.6027,15.7193596 27.7277,15.7763596 L33.6837,18.4013596 C33.8657,18.4813596 33.9827,18.6603596 33.9827,18.8583596 L33.9827,26.2333596 C33.9847,26.3583596 34.0097,29.4883596 31.9797,31.5503596 L31.9797,31.5503596 Z M10.9917,24.2363596 L18.9917,24.2363596 L18.9917,25.2363596 L10.9917,25.2363596 C8.1807,25.2363596 6.1807,23.2203596 6.0127,20.2203596 C6.0007,20.1093596 5.9997,19.9753596 5.9997,19.8413596 C5.9997,17.3323596 7.3177,15.6183596 9.8167,14.8623596 C9.7977,14.6353596 9.7847,14.3963596 9.7847,14.2153596 C9.7847,11.2993596 11.3617,8.77035958 13.8017,7.77035958 C17.0997,6.42235958 20.8437,6.87635958 22.9077,8.87435958 C23.6527,9.59835958 24.2317,10.4163596 24.6677,11.3593596 C25.2767,10.9093596 26.0677,10.6983596 27.0167,10.7453596 C28.7967,10.8353596 30.1657,12.4583596 30.4497,14.7523596 C31.9477,14.8763596 32.9347,15.6353596 33.4597,17.0603596 L32.5227,17.4063596 C32.0947,16.2493596 31.3147,15.7333596 29.9917,15.7333596 C29.7267,15.7333596 29.5077,15.5273596 29.4917,15.2633596 C29.3537,12.9253596 28.0857,11.8003596 26.9657,11.7443596 C26.0207,11.6913596 25.3207,11.9633596 24.8867,12.5353596 C24.7757,12.6803596 24.6017,12.7523596 24.4137,12.7283596 C24.2337,12.7003596 24.0817,12.5773596 24.0187,12.4053596 C23.6147,11.3023596 23.0237,10.3823596 22.2117,9.59135958 C20.4237,7.86135958 17.1217,7.49235958 14.1807,8.69635958 C12.1177,9.54135958 10.7847,11.7073596 10.7847,14.2153596 C10.7847,14.4883596 10.8197,14.9113596 10.8507,15.1743596 C10.8807,15.4253596 10.7197,15.6583596 10.4747,15.7183596 C8.1687,16.2903596 6.9997,17.6773596 6.9997,19.8413596 C6.9997,19.9423596 6.9987,20.0423596 7.0087,20.1433596 C7.1497,22.6383596 8.7117,24.2363596 10.9917,24.2363596 L10.9917,24.2363596 Z" fill="#FFFFFF"></path></g></symbol><symbol id="i-res-user" viewBox="0 0 48 48"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><path d="M6.025,44 C6.524,34.085 14.395,26.178 24,26.178 C27.248,26.178 30.43,27.092 33.205,28.822 C38.354,32.033 41.653,37.783 41.974,44 L6.025,44 Z M14.192,13.878 C14.192,8.432 18.592,4 24.001,4 C29.408,4 33.807,8.432 33.807,13.878 C33.807,19.325 29.408,23.757 24.001,23.757 C18.592,23.757 14.192,19.325 14.192,13.878 L14.192,13.878 Z M34.263,27.125 C32.53,26.044 30.65,25.26 28.698,24.771 C32.877,22.939 35.807,18.749 35.807,13.878 C35.807,7.329 30.51,2 24.001,2 C17.489,2 12.192,7.329 12.192,13.878 C12.192,18.755 15.13,22.95 19.317,24.778 C10.545,26.981 4,35.2 4,45 C4,45.552 4.447,46 5,46 L43,46 C43.552,46 44,45.552 44,45 C44,37.719 40.269,30.87 34.263,27.125 L34.263,27.125 Z" fill="#242F3E"></path></g></symbol><symbol id="i-res-source-code" viewBox="0 0 48 48"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><path d="M25.0518,19.684 L26.9478,20.317 L22.9478,32.317 L21.0518,31.684 L25.0518,19.684 Z M34.6248,25.22 C34.8628,25.409 34.9998,25.697 34.9998,26 C34.9998,26.304 34.8628,26.592 34.6248,26.781 L29.6248,30.781 L28.3748,29.22 L32.3998,26 L28.3748,22.781 L29.6248,21.22 L34.6248,25.22 Z M19.6248,22.781 L15.6008,26 L19.6248,29.22 L18.3748,30.781 L13.3748,26.781 C13.1378,26.592 12.9998,26.304 12.9998,26 C12.9998,25.697 13.1378,25.409 13.3748,25.22 L18.3748,21.22 L19.6248,22.781 Z M9.9998,44 L10.0068,4 L27.9998,4 L27.9998,13 C27.9998,13.552 28.4478,14 28.9998,14 L37.9998,14 L37.9998,44 L9.9998,44 Z M29.9998,5.414 L36.5858,12 L29.9998,12 L29.9998,5.414 Z M39.7068,12.293 L29.7068,2.293 C29.5198,2.105 29.2658,2 28.9998,2 L9.9998,2 C8.8228,2 7.9998,2.822 7.9998,4 L7.9998,44 C7.9998,45.14 8.8598,46 9.9998,46 L37.9998,46 C39.1408,46 39.9998,45.14 39.9998,44 L39.9998,13 C39.9998,12.734 39.8948,12.48 39.7068,12.293 L39.7068,12.293 Z" fill="#232F3D"></path></g></symbol><symbol id="i-res-credentials" viewBox="0 0 48 48"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><path d="M13,18 L24,18 L24,16 L13,16 L13,18 Z M13,11 L35,11 L35,9 L13,9 L13,11 Z M30.083,37.532 C29.276,37.829 28.409,38 27.5,38 C26.654,38 25.843,37.852 25.083,37.593 L25.083,42.84 L27.104,41.126 C27.489,40.798 28.06,40.811 28.433,41.158 L30.083,42.699 L30.083,37.532 Z M27.5,36 C30.532,36 33,33.533 33,30.5 C33,27.467 30.532,25 27.5,25 C24.468,25 22,27.467 22,30.5 C22,33.533 24.468,36 27.5,36 L27.5,36 Z M32.083,36.424 L32.083,45 C32.083,45.398 31.847,45.758 31.481,45.917 C31.354,45.972 31.218,46 31.083,46 C30.835,46 30.59,45.907 30.4,45.731 L27.719,43.227 L24.729,45.763 C24.433,46.015 24.015,46.071 23.663,45.907 C23.31,45.743 23.083,45.389 23.083,45 L23.083,36.548 C21.218,35.182 20,32.983 20,30.5 C20,26.364 23.364,23 27.5,23 C31.636,23 35,26.364 35,30.5 C35,32.909 33.854,35.05 32.083,36.424 L32.083,36.424 Z M40,3 L40,40 C40,40.552 39.553,41 39,41 L34,41 L34,39 L38,39 L38,4 L10,4 L10,39 L21,39 L21,41 L9,41 C8.447,41 8,40.552 8,40 L8,3 C8,2.448 8.447,2 9,2 L39,2 C39.553,2 40,2.448 40,3 L40,3 Z" fill="#232F3D"></path></g></symbol><symbol id="i-res-server" viewBox="0 0 48 48"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><path d="M15.437,21.52 L32.064,21.52 L32.064,19.52 L15.437,19.52 L15.437,21.52 Z M15.437,17.196 L32.064,17.196 L32.064,15.196 L15.437,15.196 L15.437,17.196 Z M15.437,12.762 L32.064,12.762 L32.064,10.762 L15.437,10.762 L15.437,12.762 Z M15.437,8.494 L32.064,8.494 L32.064,6.494 L15.437,6.494 L15.437,8.494 Z M13,44.013 L34.499,44.013 L34.499,4 L13,4 L13,44.013 Z M35.032,2 L12.468,2 C11.659,2 11,2.659 11,3.469 L11,44.545 C11,45.355 11.659,46.013 12.468,46.013 L35.032,46.013 C35.841,46.013 36.499,45.355 36.499,44.545 L36.499,3.469 C36.499,2.659 35.841,2 35.032,2 L35.032,2 Z" fill="#232F3D"></path></g></symbol><symbol id="i-res-document" viewBox="0 0 48 48"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><path d="M15,20 L28,20 L28,18 L15,18 L15,20 Z M15,34 L28,34 L28,32 L15,32 L15,34 Z M15,27 L32,27 L32,25 L15,25 L15,27 Z M10,44 L10.007,4 L28,4 L28,13 C28,13.552 28.447,14 29,14 L38,14 L38.025,44 L10,44 Z M30,5.414 L36.586,12 L30,12 L30,5.414 Z M39.707,12.293 L29.707,2.293 C29.52,2.105 29.266,2 29,2 L10,2 C8.822,2 8,2.822 8,4 L8,44 C8,45.14 8.859,46 10,46 L38.025,46 C39.151,46 40,45.14 40,44 L40,13 C40,12.735 39.895,12.48 39.707,12.293 L39.707,12.293 Z" fill="#232F3D"></path></g></symbol><symbol id="i-aws-identity-and-access-management" viewBox="0 0 80 80"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g fill="#DD344C"><rect x="0" y="0" width="80" height="80"></rect></g><path d="M14,59 L66,59 L66,21 L14,21 L14,59 Z M68,20 L68,60 C68,60.552 67.553,61 67,61 L13,61 C12.447,61 12,60.552 12,60 L12,20 C12,19.448 12.447,19 13,19 L67,19 C67.553,19 68,19.448 68,20 L68,20 Z M44,48 L59,48 L59,46 L44,46 L44,48 Z M57,42 L62,42 L62,40 L57,40 L57,42 Z M44,42 L52,42 L52,40 L44,40 L44,42 Z M29,46 C29,45.449 28.552,45 28,45 C27.448,45 27,45.449 27,46 C27,46.551 27.448,47 28,47 C28.552,47 29,46.551 29,46 L29,46 Z M31,46 C31,47.302 30.161,48.401 29,48.816 L29,51 L27,51 L27,48.815 C25.839,48.401 25,47.302 25,46 C25,44.346 26.346,43 28,43 C29.654,43 31,44.346 31,46 L31,46 Z M19,53.993 L36.994,54 L36.996,50 L33,50 L33,48 L36.996,48 L36.998,45 L33,45 L33,43 L36.999,43 L37,40.007 L19.006,40 L19,53.993 Z M22,38.001 L34,38.006 L34,31 C34.001,28.697 31.197,26.677 28,26.675 L27.996,26.675 C24.804,26.675 22.004,28.696 22.002,31 L22,38.001 Z M17,54.992 L17.006,39 C17.006,38.734 17.111,38.48 17.299,38.292 C17.486,38.105 17.741,38 18.006,38 L20,38.001 L20.002,31 C20.004,27.512 23.59,24.675 27.996,24.675 L28,24.675 C32.412,24.677 36.001,27.515 36,31 L36,38.007 L38,38.008 C38.553,38.008 39,38.456 39,39.008 L38.994,55 C38.994,55.266 38.889,55.52 38.701,55.708 C38.514,55.895 38.259,56 37.994,56 L18,55.992 C17.447,55.992 17,55.544 17,54.992 L17,54.992 Z M60,36 L62,36 L62,34 L60,34 L60,36 Z M44,36 L55,36 L55,34 L44,34 L44,36 Z" fill="#FFFFFF"></path></g></symbol><symbol id="i-amazon-simple-storage-service" viewBox="0 0 80 80"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g fill="#7AA116"><rect x="0" y="0" width="80" height="80"></rect></g><g transform="translate(12.999900, 11.999600)" fill="#FFFFFF"><path d="M47.836,30.893 L48.22,28.189 C51.761,30.31 51.807,31.186 51.8060132,31.21 C51.8,31.215 51.196,31.719 47.836,30.893 L47.836,30.893 Z M45.893,30.353 C39.773,28.501 31.25,24.591 27.801,22.961 C27.801,22.947 27.805,22.934 27.805,22.92 C27.805,21.595 26.727,20.517 25.401,20.517 C24.077,20.517 22.999,21.595 22.999,22.92 C22.999,24.245 24.077,25.323 25.401,25.323 C25.983,25.323 26.511,25.106 26.928,24.761 C30.986,26.682 39.443,30.535 45.608,32.355 L43.17,49.561 C43.163,49.608 43.16,49.655 43.16,49.702 C43.16,51.217 36.453,54 25.494,54 C14.419,54 7.641,51.217 7.641,49.702 C7.641,49.656 7.638,49.611 7.632,49.566 L2.538,12.359 C6.947,15.394 16.43,17 25.5,17 C34.556,17 44.023,15.4 48.441,12.374 L45.893,30.353 Z M2,8.478 C2.072,7.162 9.634,2 25.5,2 C41.364,2 48.927,7.161 49,8.478 L49,8.927 C48.13,11.878 38.33,15 25.5,15 C12.648,15 2.843,11.868 2,8.913 L2,8.478 Z M51,8.5 C51,5.035 41.066,0 25.5,0 C9.934,0 0,5.035 0,8.5 L0.094,9.254 L5.642,49.778 C5.775,54.31 17.861,56 25.494,56 C34.966,56 45.029,53.822 45.159,49.781 L47.555,32.884 C48.888,33.203 49.985,33.366 50.866,33.366 C52.049,33.366 52.849,33.077 53.334,32.499 C53.732,32.025 53.884,31.451 53.77,30.84 C53.511,29.456 51.868,27.964 48.522,26.055 L50.898,9.293 L51,8.5 Z"></path></g></g></symbol><symbol id="i-amazon-elastic-container-service" viewBox="0 0 80 80"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g fill="#ED7100"><rect x="0" y="0" width="80" height="80"></rect></g><path d="M64,48.2340095 L56,43.4330117 L56,32.0000169 C56,31.6440171 55.812,31.3150172 55.504,31.1360173 L44,24.4260204 L44,14.7520248 L64,26.5710194 L64,48.2340095 Z M65.509,25.13902 L43.509,12.139026 C43.199,11.9560261 42.818,11.9540261 42.504,12.131026 C42.193,12.3090259 42,12.6410257 42,13.0000256 L42,25.0000201 C42,25.3550199 42.189,25.6840198 42.496,25.8640197 L54,32.5740166 L54,44.0000114 C54,44.3510113 54.185,44.6770111 54.486,44.857011 L64.486,50.8570083 C64.644,50.9520082 64.822,51 65,51 C65.17,51 65.34,50.9570082 65.493,50.8700083 C65.807,50.6930084 66,50.3600085 66,50 L66,26.0000196 C66,25.6460198 65.814,25.31902 65.509,25.13902 L65.509,25.13902 Z M40.445,66.863001 L17,54.3990067 L17,26.5710194 L37,14.7520248 L37,24.4510204 L26.463,31.1560173 C26.175,31.3400172 26,31.6580171 26,32.0000169 L26,49.0000091 C26,49.373009 26.208,49.7150088 26.538,49.8870087 L39.991,56.8870055 C40.28,57.0370055 40.624,57.0380055 40.912,56.8880055 L53.964,50.1440086 L61.996,54.9640064 L40.445,66.863001 Z M64.515,54.1420068 L54.515,48.1420095 C54.217,47.9640096 53.849,47.9520096 53.541,48.1120095 L40.455,54.8730065 L28,48.3930094 L28,32.5490167 L38.537,25.8440197 C38.825,25.6600198 39,25.3420199 39,25.0000201 L39,13.0000256 C39,12.6410257 38.808,12.3090259 38.496,12.131026 C38.184,11.9540261 37.802,11.9560261 37.491,12.139026 L15.491,25.13902 C15.187,25.31902 15,25.6460198 15,26.0000196 L15,55 C15,55.3690062 15.204,55.7090061 15.53,55.883006 L39.984,68.8830001 C40.131,68.961 40.292,69 40.453,69 C40.62,69 40.786,68.958 40.937,68.8750001 L64.484,55.875006 C64.797,55.7020061 64.993,55.3750062 65.0001416,55.0180064 C65.006,54.6600066 64.821,54.3260067 64.515,54.1420068 L64.515,54.1420068 Z" fill="#FFFFFF"></path></g></symbol><symbol id="i-amazon-rds" viewBox="0 0 80 80"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g fill="#C925D1"><rect x="0" y="0" width="80" height="80"></rect></g><path d="M15.414,14 L24.707,23.293 L23.293,24.707 L14,15.414 L14,23 L12,23 L12,13 C12,12.448 12.447,12 13,12 L23,12 L23,14 L15.414,14 Z M68,13 L68,23 L66,23 L66,15.414 L56.707,24.707 L55.293,23.293 L64.586,14 L57,14 L57,12 L67,12 C67.553,12 68,12.448 68,13 L68,13 Z M66,57 L68,57 L68,67 C68,67.552 67.553,68 67,68 L57,68 L57,66 L64.586,66 L55.293,56.707 L56.707,55.293 L66,64.586 L66,57 Z M65.5,39.213 C65.5,35.894 61.668,32.615 55.25,30.442 L55.891,28.548 C63.268,31.045 67.5,34.932 67.5,39.213 C67.5,43.495 63.268,47.383 55.89,49.879 L55.249,47.984 C61.668,45.812 65.5,42.534 65.5,39.213 L65.5,39.213 Z M14.556,39.213 C14.556,42.393 18.143,45.585 24.152,47.753 L23.473,49.634 C16.535,47.131 12.556,43.333 12.556,39.213 C12.556,35.094 16.535,31.296 23.473,28.792 L24.152,30.673 C18.143,32.842 14.556,36.034 14.556,39.213 L14.556,39.213 Z M24.707,56.707 L15.414,66 L23,66 L23,68 L13,68 C12.447,68 12,67.552 12,67 L12,57 L14,57 L14,64.586 L23.293,55.293 L24.707,56.707 Z M40,31.286 C32.854,31.286 29,29.44 29,28.686 C29,27.931 32.854,26.086 40,26.086 C47.145,26.086 51,27.931 51,28.686 C51,29.44 47.145,31.286 40,31.286 L40,31.286 Z M40.029,39.031 C33.187,39.031 29,37.162 29,36.145 L29,31.284 C31.463,32.643 35.832,33.286 40,33.286 C44.168,33.286 48.537,32.643 51,31.284 L51,36.145 C51,37.163 46.835,39.031 40.029,39.031 L40.029,39.031 Z M40.029,46.667 C33.187,46.667 29,44.798 29,43.781 L29,38.862 C31.431,40.291 35.742,41.031 40.029,41.031 C44.292,41.031 48.578,40.292 51,38.867 L51,43.781 C51,44.799 46.835,46.667 40.029,46.667 L40.029,46.667 Z M40,53.518 C32.883,53.518 29,51.605 29,50.622 L29,46.498 C31.431,47.927 35.742,48.667 40.029,48.667 C44.292,48.667 48.578,47.929 51,46.503 L51,50.622 C51,51.605 47.117,53.518 40,53.518 L40,53.518 Z M40,24.086 C33.739,24.086 27,25.525 27,28.686 L27,50.622 C27,53.836 33.54,55.518 40,55.518 C46.46,55.518 53,53.836 53,50.622 L53,28.686 C53,25.525 46.261,24.086 40,24.086 L40,24.086 Z" fill="#FFFFFF"></path></g></symbol><symbol id="i-amazon-managed-streaming-for-apache-kafka" viewBox="0 0 80 80"><g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><g fill="#8C4FFF"><rect x="0" y="0" width="80" height="80"></rect></g><path d="M36.0081373,36.9770888 L36.0081373,27.9864616 L38.0040686,27.9864616 L38.0040686,31.9822959 L40.697578,27.9864616 L42.907074,27.9864616 L39.7854374,32.1900793 L43.1645492,36.9770888 L40.7973746,36.9770888 L38.0040686,32.631619 L38.0040686,36.9770888 L36.0081373,36.9770888 Z M66,49.1174325 L65.331363,49.6958295 C63.9841093,50.8755996 62.1718036,51.4659841 60.357502,51.4659841 C58.5432004,51.4659841 56.7279008,50.8755996 55.3786512,49.6928326 L54.0453691,48.5380365 C52.0893563,46.8238236 48.665336,46.8238236 46.7133152,48.5340406 L45.3720493,49.6958295 C42.6785399,52.0563686 38.1168388,52.0583665 35.4193375,49.6928326 L34.0860553,48.5380365 C32.1300426,46.8238236 28.7060223,46.8238236 26.7540015,48.5340406 L25.4127356,49.6958295 C22.7192262,52.0563686 18.157525,52.0583665 15.4600238,49.6928326 L14.7953787,49.1174325 L16.1017157,47.6060081 L16.7703527,48.1854041 C18.7273635,49.899617 22.1513837,49.899617 24.1024066,48.1893999 L25.4436725,47.0266121 C28.1371819,44.667072 32.698883,44.667072 35.3963843,47.030608 L36.7296664,48.1854041 C38.6866772,49.899617 42.1106974,49.899617 44.0617203,48.1893999 L45.4029862,47.0266121 C48.0964956,44.667072 52.6581968,44.667072 55.355698,47.030608 L56.6889802,48.1854041 C58.6449929,49.899617 62.0690132,49.899617 64.021034,48.1893999 L64.6936629,47.6060081 L66,49.1174325 Z M63.8982843,61.139899 L65.2046213,62.6503244 L64.5359843,63.2297203 C63.1897286,64.4094904 61.3774229,64.998876 59.5641193,64.998876 C57.7488197,64.998876 55.9335201,64.4084915 54.5832726,63.2257245 L53.2499904,62.0709284 C51.2939777,60.3587134 47.8699574,60.3587134 45.9179365,62.0669326 L44.5766706,63.2297203 C41.8851572,65.5902595 37.323456,65.5912584 34.6239589,63.2257245 L33.2906767,62.0709284 C31.3356619,60.3587134 27.9116417,60.3587134 25.9586228,62.0669326 L24.6173569,63.2297203 C21.9248455,65.5902595 17.3631444,65.5912584 14.6646451,63.2257245 L14,62.6503244 L15.3063371,61.139899 L15.9749741,61.719295 C17.9319848,63.43151 21.3560051,63.4325089 23.307028,61.7222918 L24.6482939,60.560503 C27.3428012,58.2009628 31.9025064,58.1999639 34.6010056,60.5634999 L35.9342878,61.719295 C37.8912985,63.43151 41.3153188,63.4325089 43.2663417,61.7222918 L44.6076076,60.560503 C47.3021149,58.2009628 51.8618201,58.1999639 54.5603193,60.5634999 L55.8936015,61.719295 C57.8506122,63.43151 61.2746325,63.4325089 63.2256554,61.7222918 L63.8982843,61.139899 Z M63.8982843,54.8065016 L65.2046213,56.315928 L64.5359843,56.895324 C61.8434729,59.2568621 57.2817718,59.257861 54.5832726,56.8923271 L53.2499904,55.737531 C51.2939777,54.0233181 47.8699574,54.024317 45.9179365,55.7335351 L44.5766706,56.8963229 C43.2304149,58.076093 41.4171113,58.6654786 39.6048056,58.6654786 C37.789506,58.6654786 35.9742064,58.0750941 34.6239589,56.8923271 L33.2906767,55.737531 C31.3356619,54.0233181 27.9116417,54.024317 25.9586228,55.7335351 L24.6173569,56.8963229 C21.9258435,59.2568621 17.3641423,59.2568621 14.6646451,56.8923271 L14,56.315928 L15.3063371,54.8065016 L15.9749741,55.3858976 C17.9319848,57.1001105 21.3560051,57.0991115 23.307028,55.3888944 L24.6482939,54.2271056 C27.3428012,51.8675654 31.9045024,51.8655675 34.6010056,54.2301025 L35.9342878,55.3848986 C37.8912985,57.1001105 41.3153188,57.0991115 43.2663417,55.3888944 L44.6076076,54.2271056 C47.3021149,51.8675654 51.8638161,51.8655675 54.5603193,54.2301025 L55.8936015,55.3848986 C57.8506122,57.1001105 61.2746325,57.0991115 63.2256554,55.3888944 L63.8982843,54.8065016 Z M24.032549,37.9760474 C25.1333052,37.9760474 26.0284804,38.8721132 26.0284804,39.9739646 C26.0284804,41.0758159 25.1333052,41.9718817 24.032549,41.9718817 C22.9317929,41.9718817 22.0366177,41.0758159 22.0366177,39.9739646 C22.0366177,38.8721132 22.9317929,37.9760474 24.032549,37.9760474 L24.032549,37.9760474 Z M39.0020343,16.9979172 C40.1027905,16.9979172 40.9979657,17.893983 40.9979657,18.9958343 C40.9979657,20.0976856 40.1027905,20.9937515 39.0020343,20.9937515 C37.9012782,20.9937515 37.0061029,20.0976856 37.0061029,18.9958343 C37.0061029,17.893983 37.9012782,16.9979172 39.0020343,16.9979172 L39.0020343,16.9979172 Z M55.967451,39.9739646 C55.967451,41.0758159 55.0722757,41.9718817 53.9715196,41.9718817 C52.8707634,41.9718817 51.9755882,41.0758159 51.9755882,39.9739646 C51.9755882,38.8721132 52.8707634,37.9760474 53.9715196,37.9760474 C55.0722757,37.9760474 55.967451,38.8721132 55.967451,39.9739646 L55.967451,39.9739646 Z M39.0020343,22.9916687 C39.6666795,22.9916687 40.2854182,22.8128551 40.8372932,22.5231571 L51.0045676,37.3267243 C50.5884159,37.792239 50.2830384,38.3526548 50.1223659,38.975006 L27.8817027,38.975006 C27.7210302,38.3526548 27.4156527,37.792239 26.999501,37.3267243 L37.1667754,22.5231571 C37.7186504,22.8128551 38.3373892,22.9916687 39.0020343,22.9916687 L39.0020343,22.9916687 Z M24.032549,43.9697989 C25.8867693,43.9697989 27.43661,42.6911319 27.8817027,40.9729231 L50.1223659,40.9729231 C50.5674586,42.6911319 52.1172994,43.9697989 53.9715196,43.9697989 C56.1730319,43.9697989 57.9633823,42.1776672 57.9633823,39.9739646 C57.9633823,37.7702619 56.1730319,35.9781302 53.9715196,35.9781302 C53.5114574,35.9781302 53.0763444,36.0720323 52.6631866,36.2158824 L42.3372356,21.1805567 C42.7503934,20.5522118 42.9938971,19.8029929 42.9938971,18.9958343 C42.9938971,16.7921317 41.2035466,15 39.0020343,15 C36.800522,15 35.0101716,16.7921317 35.0101716,18.9958343 C35.0101716,19.8029929 35.2536752,20.5522118 35.666833,21.1805567 L25.340882,36.2158824 C24.9277243,36.0720323 24.4926112,35.9781302 24.032549,35.9781302 C21.8310367,35.9781302 20.0406863,37.7702619 20.0406863,39.9739646 C20.0406863,42.1776672 21.8310367,43.9697989 24.032549,43.9697989 L24.032549,43.9697989 Z" fill="#FFFFFF"></path></g></symbol><marker id="m-scan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-scan"></path></marker><marker id="m-plan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-plan"></path></marker><marker id="m-review" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-review"></path></marker><marker id="m-apply" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-apply"></path></marker><marker id="m-boot" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="mk-boot"></path></marker></defs><rect width="1480" height="700" fill="#FFFFFF"></rect>
+<rect class="grp" x="16" y="16" width="500" height="660" fill="none" stroke="#7D8998" stroke-width="1.5"></rect>
+<use href="#i-group-corporate-data-center" x="16" y="16" width="26" height="26"></use>
+<text class="gl" x="48" y="33" fill="#232F3E">GitLab CI/CD<tspan class="gs" dx="8">nơi duy nhất chạy Terraform</tspan></text>
+<rect class="grp" x="560" y="16" width="904" height="660" fill="none" stroke="#232F3E" stroke-width="1.5"></rect>
+<use href="#i-group-aws-cloud" x="560" y="16" width="26" height="26"></use>
+<text class="gl" x="592" y="33" fill="#232F3E">AWS Account<tspan class="gs" dx="8">environment được quản lý</tspan></text>
+<rect class="grp" x="574" y="46" width="876" height="616" fill="none" stroke="#00A4A6" stroke-width="1.5" stroke-dasharray="6 4"></rect>
+<use href="#i-group-region" x="574" y="46" width="26" height="26"></use>
+<text class="gl" x="606" y="63" fill="#007D7F">Region</text>
+<rect class="grp" x="880" y="196" width="556" height="220" fill="none" stroke="#8C4FFF" stroke-width="1.5"></rect>
+<use href="#i-group-virtual-private-cloud-vpc" x="880" y="196" width="26" height="26"></use>
+<text class="gl" x="912" y="213" fill="#232F3E">Workload resources<tspan class="gs" dx="8">do Terraform tạo và sửa</tspan></text>
+<g>
+<rect class="poolbox" x="36" y="510" width="464" height="146" rx="6"></rect>
+<rect x="36" y="510" width="5" height="146" rx="2" fill="#2563EB"></rect>
+<text class="nl" x="52" y="532" fill="#2563EB">Các stage của pipeline</text>
+<text class="ns2" x="52" y="554">1 pre-commit: trivy secret, trivy IaC, checkov</text>
+<text class="ns2" x="52" y="572">2 validate: terraform fmt, terraform validate</text>
+<text class="ns2" x="52" y="590">3 test: terraform test, test chính sách risk</text>
+<text class="ns2" x="52" y="608">4 plan (manual), rồi risk và infracost tự chạy</text>
+<text class="ns2" x="52" y="626">5 apply (manual, protected ref, verdict PASS)</text>
+</g>
+<g>
+<rect class="poolbox" x="610" y="548" width="800" height="100" rx="6"></rect>
+<rect x="610" y="548" width="5" height="100" rx="2" fill="#059669"></rect>
+<text class="nl" x="626" y="570" fill="#059669">Chốt chặn chống nhầm lẫn</text>
+<text class="ns2" x="626" y="592">account_guard: so account đang đăng nhập với variable workload_account_id, sai thì dừng</text>
+<text class="ns2" x="626" y="610">backend partial: backend.hcl không chứa secret, runner lấy identity từ variable CI</text>
+<text class="ns2" x="626" y="628">plan chứa secret: artifact chỉ role Developer đọc được, expire sau 7 ngày</text>
+</g>
+<g class="node" data-id="dev" tabindex="0" role="button">
+<rect class="hit" x="36" y="70" width="120" height="97" rx="6"></rect>
+<use href="#i-res-user" x="74" y="74" width="44" height="44"></use>
+<text class="nl" x="96" y="133" text-anchor="middle">Kỹ sư</text>
+<text class="ns" x="96" y="146" text-anchor="middle">push, merge request</text>
+<text class="ns" x="96" y="159" text-anchor="middle">bấm job manual</text>
+</g>
+<g class="node" data-id="repo" tabindex="0" role="button">
+<rect class="hit" x="230" y="70" width="130" height="97" rx="6"></rect>
+<use href="#i-res-source-code" x="273" y="74" width="44" height="44"></use>
+<text class="nl" x="295" y="133" text-anchor="middle">Repo GitLab</text>
+<text class="ns" x="295" y="146" text-anchor="middle">release branch</text>
+<text class="ns" x="295" y="159" text-anchor="middle">được bảo vệ</text>
+</g>
+<g class="node" data-id="vars" tabindex="0" role="button">
+<rect class="hit" x="390" y="70" width="110" height="97" rx="6"></rect>
+<use href="#i-res-credentials" x="423" y="74" width="44" height="44"></use>
+<text class="nl" x="445" y="133" text-anchor="middle">CI variables</text>
+<text class="ns" x="445" y="146" text-anchor="middle">AWS key (masked)</text>
+<text class="ns" x="445" y="159" text-anchor="middle">ID account</text>
+</g>
+<g class="node" data-id="runner" tabindex="0" role="button">
+<rect class="hit" x="230" y="240" width="130" height="97" rx="6"></rect>
+<use href="#i-res-server" x="273" y="244" width="44" height="44"></use>
+<text class="nl" x="295" y="303" text-anchor="middle">Runner Docker</text>
+<text class="ns" x="295" y="316" text-anchor="middle">terraform, trivy,</text>
+<text class="ns" x="295" y="329" text-anchor="middle">checkov, conftest</text>
+</g>
+<g class="node" data-id="artifact" tabindex="0" role="button">
+<rect class="hit" x="240" y="390" width="110" height="97" rx="6"></rect>
+<use href="#i-res-document" x="273" y="394" width="44" height="44"></use>
+<text class="nl" x="295" y="453" text-anchor="middle">Artifact</text>
+<text class="ns" x="295" y="466" text-anchor="middle">tfplan, plan.txt</text>
+<text class="ns" x="295" y="479" text-anchor="middle">risk-verdict.txt</text>
+</g>
+<g class="node" data-id="iam" tabindex="0" role="button">
+<rect class="hit" x="610" y="100" width="140" height="97" rx="6"></rect>
+<use href="#i-aws-identity-and-access-management" x="658" y="104" width="44" height="44"></use>
+<text class="nl" x="680" y="163" text-anchor="middle">IAM của CI</text>
+<text class="ns" x="680" y="176" text-anchor="middle">quyền hẹp</text>
+<text class="ns" x="680" y="189" text-anchor="middle">permission boundary</text>
+</g>
+<g class="node" data-id="s3" tabindex="0" role="button">
+<rect class="hit" x="610" y="420" width="140" height="97" rx="6"></rect>
+<use href="#i-amazon-simple-storage-service" x="658" y="424" width="44" height="44"></use>
+<text class="nl" x="680" y="483" text-anchor="middle">S3 state</text>
+<text class="ns" x="680" y="496" text-anchor="middle">versioning, encryption</text>
+<text class="ns" x="680" y="509" text-anchor="middle">lockfile</text>
+</g>
+<g class="node" data-id="ecs" tabindex="0" role="button">
+<rect class="hit" x="920" y="230" width="130" height="84" rx="6"></rect>
+<use href="#i-amazon-elastic-container-service" x="963" y="234" width="44" height="44"></use>
+<text class="nl" x="985" y="293" text-anchor="middle">ECS service</text>
+<text class="ns" x="985" y="306" text-anchor="middle">ECS</text>
+</g>
+<g class="node" data-id="rds" tabindex="0" role="button">
+<rect class="hit" x="1100" y="230" width="130" height="84" rx="6"></rect>
+<use href="#i-amazon-rds" x="1143" y="234" width="44" height="44"></use>
+<text class="nl" x="1165" y="293" text-anchor="middle">Database</text>
+<text class="ns" x="1165" y="306" text-anchor="middle">RDS</text>
+</g>
+<g class="node" data-id="msk" tabindex="0" role="button">
+<rect class="hit" x="1280" y="230" width="130" height="84" rx="6"></rect>
+<use href="#i-amazon-managed-streaming-for-apache-kafka" x="1323" y="234" width="44" height="44"></use>
+<text class="nl" x="1345" y="293" text-anchor="middle">Queue</text>
+<text class="ns" x="1345" y="306" text-anchor="middle">Kafka</text>
+</g>
+<path class="flow f-scan" data-e="0" data-from="dev" data-to="repo" d="M 120 96 H 271" marker-end="url(#m-scan)"></path>
+<path class="flow f-scan" data-e="1" data-from="repo" data-to="runner" d="M 295 169 V 198 H 285 V 242" marker-end="url(#m-scan)"></path>
+<path class="flow f-plan" data-e="2" data-from="vars" data-to="runner" d="M 445 169 V 212 H 305 V 242" marker-end="url(#m-plan)"></path>
+<path class="flow f-plan" data-e="3" data-from="runner" data-to="iam" d="M 319 246 H 524 V 126 H 656" marker-end="url(#m-plan)"></path>
+<path class="flow f-plan" data-e="4" data-from="runner" data-to="s3" d="M 319 272.667 H 552 V 436 H 656" marker-start="url(#m-plan)" marker-end="url(#m-plan)"></path>
+<path class="flow f-plan" data-e="5" data-from="runner" data-to="artifact" d="M 295 339 V 392" marker-end="url(#m-plan)"></path>
+<path class="flow f-review" data-e="6" data-from="artifact" data-to="dev" d="M 271 416 H 86 V 169" marker-end="url(#m-review)"></path>
+<path class="flow f-apply" data-e="7" data-from="dev" data-to="runner" d="M 106 169 V 266 H 271" marker-end="url(#m-apply)"></path>
+<path class="flow f-apply" data-e="8" data-from="runner" data-to="ecs" d="M 319 259.333 H 961" marker-end="url(#m-apply)"></path>
+<path class="flow f-boot" data-e="9" data-from="runner" data-to="s3" d="M 319 286 H 538 V 456 H 656" marker-end="url(#m-boot)" stroke-dasharray="7.01 5.01"></path>
+<g class="flow f-apply fl" data-e="8"><rect class="flbox"></rect><text class="flabel c-apply" x="700" y="251.333" text-anchor="middle">apply đúng tfplan đã duyệt</text></g>
+<g class="flow f-scan badge" data-e="0"><circle cx="193" cy="96" r="10" class="b-scan"></circle><text x="193" y="100" text-anchor="middle" class="bt">1</text></g>
+<g class="flow f-plan badge" data-e="2"><circle cx="445" cy="190" r="10" class="b-plan"></circle><text x="445" y="194" text-anchor="middle" class="bt">2</text></g>
+<g class="flow f-review badge" data-e="6"><circle cx="86" cy="360" r="10" class="b-review"></circle><text x="86" y="364" text-anchor="middle" class="bt">3</text></g>
+<g class="flow f-apply badge" data-e="7"><circle cx="190" cy="266" r="10" class="b-apply"></circle><text x="190" y="270" text-anchor="middle" class="bt">4</text></g>
+<g class="flow f-boot badge" data-e="9"><circle cx="440" cy="286" r="10" class="b-boot"></circle><text x="440" y="290" text-anchor="middle" class="bt">5</text></g></svg></div>
+  <p class="hint">Bấm vào chip để làm nổi một flow, bấm Next để đi từng mũi tên, bấm vào thành phần để xem thẻ giải thích.</p>
+
+  <details open><summary>How each flow works</summary><ol><li><b>Push và scan.</b> Kỹ sư push lên repo. Pipeline tự chạy scan secret, scan config IaC, fmt, validate và test. Chưa gọi AWS.</li><li><b>Manual plan.</b> Kỹ sư bấm job plan. Runner lấy lock từ variable CI, init vào S3 (lấy state lock), so account, rồi plan và lưu artifact.</li><li><b>Review result.</b> Job risk scoring plan bằng chính sách Rego và ghi verdict. Người duyệt đọc plan và báo cáo thay đổi.</li><li><b>Manual apply.</b> Kỹ sư bấm job apply trên protected ref. Job kiểm tra hash plan và verdict PASS rồi apply đúng file plan.</li><li><b>One-time bootstrap.</b> Child pipeline tạo bucket state, vì bucket này là backend của chính pipeline nên không tự tạo bằng Terraform được.</li></ol></details>
+
+</main>
+
+<script>
+const D = {
+  "dev": [
+    "Kỹ sư",
+    "Người vận hành",
+    "Coding Terraform, push lên branch, đọc plan và bấm job manual. Không chạy terraform apply từ máy cá nhân."
+  ],
+  "repo": [
+    "Repo GitLab",
+    "Git repository",
+    "Giữ code và file pipeline. Branch có quyền apply được bảo vệ, chỉ Maintainer push."
+  ],
+  "vars": [
+    "CI variables/CD",
+    "GitLab CI/CD variables",
+    "Chứa lock access của account CI và ID account mong đợi. Không bao giờ nằm trong code hay tfvars."
+  ],
+  "runner": [
+    "Runner",
+    "GitLab Runner (docker executor)",
+    "Chạy từng job trong container với version công cụ được pin. Đây là nơi duy nhất gọi Terraform."
+  ],
+  "artifact": [
+    "Artifact của job",
+    "GitLab job artifacts",
+    "Plan nhị phân, plan dạng chữ, báo cáo thay đổi và verdict risk. Apply dùng đúng file plan này."
+  ],
+  "iam": [
+    "Identity CI",
+    "AWS IAM",
+    "Identity riêng cho Terraform CI, tách khỏi user chỉ push image. Quyền giới hạn bằng permission boundary."
+  ],
+  "s3": [
+    "Bucket state",
+    "Amazon S3",
+    "Giữ file state của từng root. Bật versioning để phục hồi, use_lockfile để hai lần chạy không overwrite nhau."
+  ],
+  "ecs": [
+    "ECS service",
+    "Amazon ECS",
+    "Ví dụ một resource workload mà apply tạo hoặc sửa."
+  ],
+  "rds": [
+    "Database",
+    "Amazon RDS",
+    "Resource có dữ liệu: plan có replace là mức risk cao nhất."
+  ],
+  "msk": [
+    "Queue",
+    "Amazon MSK",
+    "Ví dụ resource dependency khác trong cùng state."
+  ]
+};
+{
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const phone=matchMedia('(max-width:700px)');
+const NS='http://www.w3.org/2000/svg',bar=$('#bar'),sheet=$('.sheet'),svg=sheet.querySelector('svg'),cap=$('#cap'),intro=cap.textContent;
+const pv=$('#pv'),nx=$('#nx'),mo=$('#motion'),rg=$('#scrub'),hopEl=$('#hop'),nt=$('#nt'),nn=$('#neon'),rl=$('#railbtn'),cb=$('#chipbar');
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const nodesOf=id=>$$(`.node[data-id="${CSS.escape(id)}"]`);
+const nm=(id,g)=>id&&D[id]?D[id][0]:g?`the ${g} boundary`:'outside the diagram';
+const FLOWS=$$('details ol li').map(li=>li.innerHTML),FIDS=$$('.chip').map(c=>c.dataset.f).filter(Boolean),FNAME={};
+const EDGES=$$('path.flow').map(p=>({p,f:[...p.classList].find(c=>c.startsWith('f-')).slice(2),a:p.dataset.from,z:p.dataset.to,ag:p.dataset.fromGroup,zg:p.dataset.toGroup}));
+$$('.flow').forEach(el=>{const f=[...el.classList].find(c=>c.startsWith('f-'));if(f)el.style.color=`var(--${f.slice(2)})`});
+$$('.chip').forEach(c=>{const i=c.querySelector('i');if(i)c.style.setProperty('--c',i.style.background);if(c.dataset.f)FNAME[c.dataset.f]=c.querySelector('.t').textContent});
+new ResizeObserver(()=>document.documentElement.style.setProperty('--dh',bar.offsetHeight+'px')).observe(bar);
+
+// packets along arrows
+function traffic(list){svg.querySelectorAll('.pkt').forEach(x=>x.remove());
+  list.forEach((e,i)=>{const L=e.p.getTotalLength(),dur=Math.max(.8,L/240),k=list.length>1?2:3;
+    for(let j=0;j<k;j++){const c=document.createElementNS(NS,'circle');c.setAttribute('r',5);c.setAttribute('class','pkt');c.setAttribute('fill',`var(--${e.f})`);c.style.color=`var(--${e.f})`;
+      const a=document.createElementNS(NS,'animateMotion');a.setAttribute('dur',dur+'s');a.setAttribute('repeatCount','indefinite');a.setAttribute('begin',(svg.getCurrentTime()+i*.2+j*dur/k)+'s');a.setAttribute('path',e.p.getAttribute('d'));c.append(a);svg.append(c)}})}
+
+// flow selection and spotlight
+let flow='',walking=false,pin=false,hops=[],h=0;
+function spot(){$$('.flow.on').forEach(e=>e.classList.remove('on'));$$('.node.lit').forEach(n=>n.classList.remove('lit'));
+  EDGES.filter(e=>e.f===flow).forEach(e=>{e.p.classList.add('on');[e.a,e.z].forEach(x=>x&&nodesOf(x).forEach(n=>n.classList.add('lit')))})}
+function caption(){cap.classList.remove('open');if(phone.matches)cap.setAttribute('aria-expanded','false');
+  if(flow){cap.style.setProperty('--c',`var(--${flow})`);cap.innerHTML=FLOWS[FIDS.indexOf(flow)]||''}else{cap.style.setProperty('--c','var(--line)');cap.textContent=intro}}
+$$('.chip').forEach(c=>c.addEventListener('click',()=>{
+  $$('.chip').forEach(x=>x.setAttribute('aria-pressed',x===c?'true':'false'));
+  flow=c.dataset.f;if(flow)document.body.dataset.flow=flow;else delete document.body.dataset.flow;
+  spot();caption();overview();
+  if(phone.matches)c.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'})}));
+
+// neighbourhood of a hovered or focused icon
+// size each label box from the rendered text, so the box fits whatever font loaded
+function fitLabels(){svg.querySelectorAll('.fl').forEach(g=>{const b=g.querySelector('text').getBBox(),r=g.querySelector('.flbox');
+  r.setAttribute('x',b.x-4);r.setAttribute('y',b.y-2);r.setAttribute('width',b.width+8);r.setAttribute('height',b.height+4);r.setAttribute('rx',4)})}
+fitLabels();if(document.fonts)document.fonts.ready.then(fitLabels);
+function nbOff(){sheet.classList.remove('nb');$$('.me,.near,.link').forEach(x=>x.classList.remove('me','near','link'))}
+function nbOn(n){if(walking||pin)return;nbOff();const id=n.dataset.id,mine=EDGES.filter(e=>e.a===id||e.z===id);if(!mine.length)return;
+  sheet.classList.add('nb');n.classList.add('me');mine.forEach(e=>{e.p.classList.add('link');svg.querySelectorAll(`.fl[data-e="${e.p.dataset.e}"],.badge[data-e="${e.p.dataset.e}"]`).forEach(t=>t.classList.add('link'));[e.a,e.z].forEach(x=>x&&nodesOf(x).forEach(m=>m.classList.add('near')))})}
+
+// timeline: step 0 is the overview, steps 1..N walk the arrows of the pressed flow (or all of them)
+function overview(){walking=false;sheet.classList.remove('walk');$$('.past,.now,.seen,.off').forEach(x=>x.classList.remove('past','now','seen','off'));
+  hops=flow?EDGES.filter(e=>e.f===flow):EDGES.slice();rg.max=hops.length;rg.value=0;rg.style.setProperty('--c',flow?`var(--${flow})`:'var(--muted)');
+  rg.setAttribute('aria-valuetext','Overview, all arrows shown');pv.disabled=true;nx.disabled=!hops.length;traffic(EDGES.filter(e=>e.f===flow))}
+function paint(){walking=true;sheet.classList.add('walk');nbOff();const seen=new Set(),reached=new Set();
+  EDGES.forEach(e=>{const i=hops.indexOf(e);e.p.classList.toggle('past',i>=0&&i<h);e.p.classList.toggle('now',i===h);if(i>=0&&i<=h){seen.add(e.f);[e.a,e.z].forEach(x=>x&&reached.add(x))}});
+  $$('.flow:not(path)').forEach(t=>t.classList.toggle('seen',[...t.classList].some(c=>c.startsWith('f-')&&seen.has(c.slice(2)))));
+  $$('.node').forEach(n=>n.classList.toggle('off',!reached.has(n.dataset.id)));
+  const e=hops[h],text=`Arrow ${h+1} of ${hops.length}: ${nm(e.a,e.ag)} → ${nm(e.z,e.zg)}`+(flow?'':` (${FNAME[e.f]||e.f})`);
+  hopEl.textContent=text;rg.value=h+1;rg.setAttribute('aria-valuetext',text);rg.style.setProperty('--c',`var(--${e.f})`);
+  pv.disabled=false;nx.disabled=h>=hops.length-1;traffic([e]);setTimeout(follow,30)}
+function follow(){if(!phone.matches||!walking||!hops[h])return;const r=hops[h].p.getBoundingClientRect(),s=sheet.getBoundingClientRect(),b=bar.getBoundingClientRect();
+  sheet.scrollBy({left:(r.left+r.width/2)-(s.left+s.width/2),behavior:'smooth'});
+  const top=cb.getBoundingClientRect().bottom+8,bot=b.top-12;if(r.top<top||r.bottom>bot)scrollBy({top:r.top-top-Math.max(0,(bot-top-r.height)/2),behavior:'smooth'})}
+nx.onclick=()=>{h=walking?h+1:0;paint()};
+pv.onclick=()=>{if(h<=0){overview();return}h--;paint()};
+rg.oninput=()=>{const v=+rg.value;if(v===0){overview();return}h=v-1;paint()};
+
+// one switch for dashes and packets (WCAG 2.2.2); motion always starts on, the switch is the only way to stop it
+mo.onclick=()=>{const on=!document.body.classList.contains('still');document.body.classList.toggle('still',on);mo.setAttribute('aria-pressed',on);on?svg.pauseAnimations():svg.unpauseAnimations()};
+
+// service card
+const pop=document.createElement('div');pop.id='pop';pop.hidden=true;pop.setAttribute('role','dialog');pop.setAttribute('aria-labelledby','pop-h');
+pop.innerHTML='<button type="button" class="x" aria-label="Close detail">×</button><section id="detail"><h2 id="pop-h"></h2><div class="aws"></div><p></p></section>';sheet.append(pop);
+let last=null;
+function closePop(){pop.hidden=true;$$('.node.sel').forEach(n=>n.classList.remove('sel'));if(last)last.focus()}
+function openPop(n){const d=D[n.dataset.id];if(!d)return;last=n;$$('.node.sel').forEach(x=>x.classList.remove('sel'));nodesOf(n.dataset.id).forEach(x=>x.classList.add('sel'));
+  pop.querySelector('h2').textContent=d[0];pop.querySelector('.aws').textContent=d[1];pop.querySelector('p').textContent=d[2];pop.hidden=false;
+  const r=n.getBoundingClientRect(),s=sheet.getBoundingClientRect();let x=r.right-s.left+sheet.scrollLeft+8,y=r.top-s.top;
+  if(x+300>sheet.scrollWidth)x=r.left-s.left+sheet.scrollLeft-308;y=Math.min(y,sheet.scrollHeight-pop.offsetHeight-8);
+  pop.style.left=Math.max(8,x)+'px';pop.style.top=Math.max(8,y)+'px';pop.querySelector('.x').focus({preventScroll:true})}
+pop.querySelector('.x').onclick=closePop;
+pop.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();pop.querySelector('.x').focus()}});
+document.addEventListener('click',e=>{if(!pop.hidden&&!pop.contains(e.target)&&!e.target.closest('.node'))closePop()});
+$$('.node').forEach(n=>{n.addEventListener('click',()=>openPop(n));n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openPop(n)}});
+  n.addEventListener('pointerenter',()=>nbOn(n));n.addEventListener('pointerleave',nbOff);n.addEventListener('focus',()=>nbOn(n));n.addEventListener('blur',nbOff)});
+
+// caption opens on tap on a phone
+cap.addEventListener('click',()=>{if(!phone.matches)return;const o=cap.classList.toggle('open');cap.setAttribute('aria-expanded',o)});
+cap.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&phone.matches){e.preventDefault();cap.click()}});
+function layout(){const p=phone.matches;if(p){cap.tabIndex=0;cap.setAttribute('role','button');cap.setAttribute('aria-expanded','false')}
+  else{cap.removeAttribute('tabindex');cap.removeAttribute('role');cap.removeAttribute('aria-expanded');cap.classList.remove('open')}}
+phone.addEventListener('change',layout);layout();
+
+// notes, kept in this browser only
+const list=document.createElement('ol');list.id='notes';list.setAttribute('aria-label','Your notes');sheet.after(list);
+const key='awsk-notes-'+location.pathname;let NOTES=[];try{NOTES=JSON.parse(store.get(key)||'[]')}catch(e){}
+const at=(x,y)=>[x*svg.clientWidth+'px',y*svg.clientHeight+'px'];
+function renderNotes(){sheet.querySelectorAll('.note').forEach(n=>n.remove());list.replaceChildren();
+  NOTES.forEach((n,i)=>{const d=document.createElement('div');d.className='note';[d.style.left,d.style.top]=at(n.x,n.y);const b=document.createElement('b');b.textContent=i+1;d.append(b,n.t);
+    const x=document.createElement('button');x.type='button';x.setAttribute('aria-label',`Delete note ${i+1}`);x.textContent='×';
+    x.onclick=e=>{e.stopPropagation();NOTES.splice(i,1);store.set(key,JSON.stringify(NOTES));renderNotes()};d.append(x);sheet.append(d);
+    const li=document.createElement('li');li.textContent=n.t;list.append(li)})}
+function setPin(on){pin=on;nt.setAttribute('aria-pressed',on);sheet.classList.toggle('pin',on);if(on)nbOff()}
+function noteForm(x,y){sheet.querySelector('.nform')?.remove();const f=document.createElement('form');f.className='nform';[f.style.left,f.style.top]=at(x,y);
+  f.innerHTML='<label>Note<textarea rows="3" maxlength="280"></textarea></label><div><button type="submit" class="tool">Save</button><button type="button" class="tool">Cancel</button></div>';
+  const ta=f.querySelector('textarea'),done=()=>{f.remove();nt.focus()};
+  f.onsubmit=e=>{e.preventDefault();const t=ta.value.trim();if(t){NOTES.push({x,y,t});store.set(key,JSON.stringify(NOTES));renderNotes()}done()};
+  f.querySelector('[type=button]').onclick=done;
+  ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();f.requestSubmit()}if(e.key==='Escape'){e.stopPropagation();done()}};
+  f.addEventListener('click',e=>e.stopPropagation());sheet.append(f);ta.focus()}
+nt.onclick=()=>setPin(!pin);
+sheet.addEventListener('click',e=>{if(!pin||e.target.closest('.note,.nform,#pop'))return;e.preventDefault();e.stopPropagation();const s=svg.getBoundingClientRect();
+  setPin(false);noteForm((e.clientX-s.left)/s.width,(e.clientY-s.top)/s.height)},true);
+sheet.addEventListener('keydown',e=>{const n=e.target.closest&&e.target.closest('.node');if(!pin||!n||(e.key!=='Enter'&&e.key!==' '))return;e.preventDefault();e.stopPropagation();
+  const r=n.getBoundingClientRect(),s=svg.getBoundingClientRect();setPin(false);noteForm((r.left+r.width/2-s.left)/s.width,(r.top-s.top)/s.height)},true);
+addEventListener('resize',renderNotes);renderNotes();
+
+// Night: tiles are added once, and have no fill outside Night
+let tiled=false;
+function setNight(on){if(on&&!tiled){tiled=true;svg.querySelectorAll('.node use').forEach(u=>{const b=u.getBBox();if(b.width<20||b.width>80)return;const r=document.createElementNS(NS,'rect');
+    r.setAttribute('class','tile');r.setAttribute('x',b.x-3);r.setAttribute('y',b.y-3);r.setAttribute('width',b.width+6);r.setAttribute('height',b.height+6);r.setAttribute('rx',6);u.before(r)})}
+  document.body.classList.toggle('night',on);if(on)document.documentElement.dataset.theme='dark';else delete document.documentElement.dataset.theme;nn.setAttribute('aria-pressed',on);store.set('awsk-night',on?'1':'')}
+nn.onclick=()=>setNight(!document.body.classList.contains('night'));setNight(store.get('awsk-night')==='1');
+
+// vertical rail switch
+function setRail(on){document.body.classList.toggle('rail',on);rl.setAttribute('aria-pressed',on);store.set('awsk-rail',on?'1':'')}
+rl.onclick=()=>setRail(!document.body.classList.contains('rail'));setRail(store.get('awsk-rail')==='1');
+
+// Escape closes the innermost layer only, and hides tooltips (WCAG 1.4.13)
+let popWasOpen=false;document.addEventListener('keydown',()=>{popWasOpen=!pop.hidden},true);
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;document.body.classList.add('notip');
+  if(popWasOpen)closePop();else if(pin){setPin(false);nt.focus()}else if(walking)overview()});
+document.addEventListener('pointermove',()=>document.body.classList.remove('notip'));
+document.addEventListener('focusin',()=>document.body.classList.remove('notip'));
+caption();overview();
+}
+</script>
+</body></html>
