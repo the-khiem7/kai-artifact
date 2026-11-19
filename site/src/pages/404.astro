@@ -1,0 +1,13 @@
+---
+import Base from "../layouts/Base.astro";
+import Glyph from "../components/Glyph.astro";
+import { url } from "../lib/url";
+---
+
+<Base title="Not found | kai-artifact" description="This star is not on the map.">
+  <main class="wrap notfound">
+    <Glyph size={96} draw />
+    <h1>This star is not on the map.</h1>
+    <p><a href={url()}>Back to the sky</a></p>
+  </main>
+</Base>

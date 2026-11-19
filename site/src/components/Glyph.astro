@@ -1,0 +1,24 @@
+---
+// The constellation mark: four stars joined by three lines. Gold = artifact, teal = document.
+interface Props {
+  size?: number;
+  draw?: boolean;
+  class?: string;
+}
+const { size = 28, draw = false, class: cls = "" } = Astro.props;
+---
+
+<svg
+  class:list={["glyph", { draw }, cls]}
+  width={size}
+  height={size}
+  viewBox="0 0 32 32"
+  fill="none"
+  aria-hidden="true"
+>
+  <path class="g-line" pathLength="1" d="M6 24 13 8 25 13 21 26" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+  <circle class="g-node n1" cx="6" cy="24" r="2.2" fill="currentColor"></circle>
+  <circle class="g-node n2" cx="13" cy="8" r="3.2" fill="var(--star-artifact)"></circle>
+  <circle class="g-node n3" cx="25" cy="13" r="2.2" fill="var(--star-document)"></circle>
+  <circle class="g-node n4" cx="21" cy="26" r="2.2" fill="currentColor"></circle>
+</svg>

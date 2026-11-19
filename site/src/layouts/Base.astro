@@ -1,0 +1,99 @@
+---
+import { ClientRouter } from "astro:transitions";
+import Glyph from "../components/Glyph.astro";
+import { url } from "../lib/url";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  lang?: string;
+  home?: boolean;
+}
+const { title, description, lang = "en", home = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const og = new URL(url("assets/og.png"), Astro.site).href;
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={url("assets/favicon.svg")} type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={og} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#070b17" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f2ea" media="(prefers-color-scheme: light)" />
+    <script is:inline>
+      // Runs before paint so the saved theme never flashes; re-applied after every client-side navigation.
+      (function () {
+        function apply() {
+          try {
+            var t = localStorage.getItem("kai-theme");
+            if (t) document.documentElement.dataset.theme = t;
+          } catch (e) {}
+        }
+        apply();
+        document.addEventListener("astro:after-swap", apply);
+      })();
+    </script>
+    <ClientRouter />
+  </head>
+  <body data-base={url()}>
+    <div class="sky" aria-hidden="true"></div>
+    <header class="nav">
+      <div class="wrap">
+        <a class="brand" href={url()}><Glyph size={26} />kai-artifact</a>
+        <nav class="nav-links" aria-label="Sections">
+          {home ? (
+            <>
+              <a class="opt" href="#map">map</a>
+              <a class="opt" href="#library">library</a>
+              <a class="opt" href="#timeline">timeline</a>
+            </>
+          ) : (
+            <a href={url("#library")}>library</a>
+          )}
+        </nav>
+        <button class="icon-btn" id="theme" type="button" aria-label="Toggle dark theme" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+        </button>
+      </div>
+    </header>
+    <slot />
+    <footer class="site">
+      <div class="wrap">
+        <span>Source on <a href="https://github.com/the-khiem7/kai-artifact">GitHub</a>. All pages are public.</span>
+      </div>
+    </footer>
+    <script>
+      function isDark() {
+        const t = document.documentElement.dataset.theme;
+        return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      }
+      function bindTheme() {
+        const btn = document.getElementById("theme");
+        if (!btn) return;
+        btn.setAttribute("aria-pressed", String(isDark()));
+        btn.onclick = () => {
+          const next = isDark() ? "light" : "dark";
+          document.documentElement.dataset.theme = next;
+          try { localStorage.setItem("kai-theme", next); } catch {}
+          btn.setAttribute("aria-pressed", String(isDark()));
+          document.dispatchEvent(new CustomEvent("kai:theme"));
+        };
+      }
+      document.addEventListener("astro:page-load", bindTheme);
+    </script>
+  </body>
+</html>

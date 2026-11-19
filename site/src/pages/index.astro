@@ -1,0 +1,151 @@
+---
+import Base from "../layouts/Base.astro";
+import Glyph from "../components/Glyph.astro";
+import { url } from "../lib/url";
+import registry from "../../public/assets/registry.json";
+
+interface Item {
+  type: "artifact" | "document";
+  slug: string;
+  title: string;
+  description: string;
+  lang: string;
+  topics: string[];
+  date: string;
+  href: string;
+  status?: string;
+}
+const items = registry.items as Item[];
+
+const artifactCount = items.filter((i) => i.type === "artifact").length;
+const documentCount = items.length - artifactCount;
+
+// Topics shared by two or more items: they are the lines of the constellation and the quick filters.
+const counts = new Map<string, number>();
+for (const i of items) for (const t of new Set(i.topics)) counts.set(t, (counts.get(t) ?? 0) + 1);
+const sharedTopics = [...counts.entries()].filter(([, n]) => n > 1).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+const quickTopics = sharedTopics.slice(0, 12).map(([t]) => t);
+const langs = [...new Set(items.map((i) => i.lang).filter(Boolean))].sort();
+
+// Timeline: newest month first.
+const months = new Map<string, Item[]>();
+for (const i of items) {
+  const key = i.date.slice(0, 7);
+  months.set(key, [...(months.get(key) ?? []), i]);
+}
+const timeline = [...months.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+const statusLabel: Record<string, string> = { verified: "verified", "partially-verified": "partly verified", unverified: "unverified" };
+---
+
+<Base
+  title="Kai's artifacts"
+  description="Kai's sky map of research: interactive artifacts and verified knowledge notes, each with its own link you can share."
+  home
+>
+  <main>
+    <div class="wrap">
+      <section class="hero" aria-labelledby="top">
+        <div>
+          <p class="eyebrow">kai-artifact / sky map</p>
+          <h1 id="top">Every page I publish is a <em>star</em>. Shared topics draw the lines.</h1>
+          <p class="lead">
+            Interactive artifacts and verified knowledge notes on cloud, infrastructure and the things around them. Find a star on the map, or filter the library below.
+          </p>
+          <div class="stats" aria-label="Totals">
+            <div class="stat a"><b data-count={artifactCount}>{artifactCount}</b><span>artifacts</span></div>
+            <div class="stat d"><b data-count={documentCount}>{documentCount}</b><span>documents</span></div>
+            <div class="stat"><b data-count={counts.size}>{counts.size}</b><span>topics</span></div>
+          </div>
+        </div>
+        <div class="hero-glyph"><Glyph size={300} draw /></div>
+      </section>
+
+      <section class="section" id="map" aria-labelledby="map-h">
+        <div class="section-head">
+          <h2 id="map-h">Knowledge map</h2>
+          <p>Hover a star to light its neighbours. Click a topic to filter the library.</p>
+        </div>
+        <div class="map-card">
+          <svg class="map" id="map-svg" role="group" aria-label="Map of artifacts and documents linked by shared topics"></svg>
+          <div class="map-tip" id="map-tip" aria-hidden="true"></div>
+          <div class="map-legend">
+            <span><i style="background:var(--star-artifact)"></i>artifact</span>
+            <span><i style="background:var(--star-document)"></i>document</span>
+            <span><i style="border:1.2px solid var(--muted)"></i>shared topic</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="library" aria-labelledby="lib-h">
+        <div class="section-head">
+          <h2 id="lib-h">Library</h2>
+          <p>Everything published, newest first.</p>
+        </div>
+        <div class="filters" id="filters">
+          <div class="filter-row">
+            <div class="seg" role="group" aria-label="Type">
+              <button type="button" data-type="" aria-pressed="true">all</button>
+              <button type="button" data-type="artifact" aria-pressed="false">artifacts</button>
+              <button type="button" data-type="document" aria-pressed="false">documents</button>
+            </div>
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+              <input id="q" type="search" placeholder="Search title, description, topic" aria-label="Search" />
+            </label>
+            <span class="count" id="count" aria-live="polite">{items.length} shown</span>
+          </div>
+          <div class="chips" aria-label="Language">
+            {langs.map((l) => <button class="chip" type="button" data-lang={l} aria-pressed="false">{l}</button>)}
+            <span class="chip" style="border-style:dashed" aria-hidden="true">topics</span>
+            {quickTopics.map((t) => <button class="chip" type="button" data-topic={t} aria-pressed="false">{t}</button>)}
+          </div>
+        </div>
+        <ul class="grid" id="grid">
+          {items.map((i) => (
+            <li class="card" data-type={i.type} data-lang={i.lang} data-topics={i.topics.join(",")} data-text={`${i.title} ${i.description} ${i.topics.join(" ")}`.toLowerCase()}>
+              <div class="kind"><span class="star"></span>{i.type}</div>
+              <h3><a href={url(i.href)}>{i.title}</a></h3>
+              <p>{i.description}</p>
+              <div class="meta">
+                {i.lang && <span class="chip">{i.lang}</span>}
+                <span class="chip">{i.date}</span>
+                {i.status && <span class="chip">{statusLabel[i.status] ?? i.status}</span>}
+                {i.topics.slice(0, 4).map((t) => <a class="chip topic" href={`${url()}?topic=${t}#library`} data-topic={t}>{t}</a>)}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p class="empty" id="empty" hidden>No match. Clear a filter or change the search.</p>
+      </section>
+
+      <section class="section" id="timeline" aria-labelledby="tl-h">
+        <div class="section-head">
+          <h2 id="tl-h">Timeline</h2>
+          <p>When each page first appeared.</p>
+        </div>
+        <div class="timeline">
+          {timeline.map(([month, list]) => (
+            <div class="month">
+              <h3>{month}</h3>
+              <ol>
+                {list.map((i) => (
+                  <li data-type={i.type}>
+                    <time datetime={i.date}>{i.date.slice(8)}</time>
+                    <a href={url(i.href)}>{i.title}</a>
+                    <span class="chip">{i.lang}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="application/json" id="registry-data" is:inline set:html={JSON.stringify(items)} />
+  <script>
+    import "../scripts/home";
+  </script>
+</Base>

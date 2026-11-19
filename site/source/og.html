@@ -1,22 +1,25 @@
 <!doctype html>
-<!-- Social preview source, 1200x630. Render to site/assets/og.png after any edit. Same signature as site/template.html. -->
+<!-- Social preview source, 1200x630. Render to site/public/assets/og.png after any edit. Same constellation identity as the home page. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
-body { background: #fbfbfa; color: #18181b; font-family: "IBM Plex Sans", sans-serif; display: flex; flex-direction: column; justify-content: space-between; padding: 72px 80px; box-sizing: border-box; border-top: 12px solid #0f766e; }
-.mark { display: flex; align-items: center; gap: 18px; font-size: 30px; font-weight: 600; }
-.mark b { display: inline-grid; place-items: center; width: 60px; height: 60px; border-radius: 6px; background: #0f766e; color: #fbfbfa; font: 500 28px "IBM Plex Mono", monospace; }
-h1 { font-size: 96px; line-height: 1; margin: 0 0 20px; letter-spacing: -.02em; font-weight: 600; }
-p { font-size: 32px; color: #5b5b63; margin: 0; max-width: 900px; line-height: 1.35; }
-.url { font: 400 26px "IBM Plex Mono", monospace; color: #0f766e; }
+body { position: relative; background: #070b17; color: #e8ecf8; font-family: "Bricolage Grotesque", system-ui, sans-serif; display: flex; flex-direction: column; justify-content: space-between; padding: 64px 80px; box-sizing: border-box;
+  background-image: radial-gradient(60% 70% at 85% 0%, rgba(138,180,255,.26), transparent 70%), radial-gradient(45% 50% at 0% 40%, rgba(94,234,212,.12), transparent 70%); }
+.top { display: flex; align-items: center; gap: 16px; font: 500 26px "IBM Plex Mono", monospace; color: #9aa5c6; letter-spacing: .08em; }
+h1 { font-size: 92px; line-height: 1.02; margin: 0 0 22px; letter-spacing: -.035em; font-weight: 700; max-width: 760px; }
+h1 em { font-style: normal; background: linear-gradient(100deg, #ffc857, #5eead4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+p { font-size: 30px; color: #9aa5c6; margin: 0; max-width: 720px; line-height: 1.35; }
+.url { font: 400 26px "IBM Plex Mono", monospace; color: #8ab4ff; }
+.glyph { position: absolute; right: 90px; top: 130px; width: 330px; height: 330px; filter: drop-shadow(0 0 40px rgba(138,180,255,.4)); }
 </style>
 </head>
 <body>
-<div class="mark"><b>k/</b>kai-artifact</div>
-<div><h1>Kai's artifacts</h1><p>Research notes and reports, each published as its own page with a link you can share.</p></div>
+<svg class="glyph" viewBox="0 0 32 32" fill="none"><path d="M6 24 13 8 25 13 21 26" stroke="#8ea2d8" stroke-width=".5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="24" r="2.2" fill="#e8ecf8"/><circle cx="25" cy="13" r="2.2" fill="#5eead4"/><circle cx="21" cy="26" r="2.2" fill="#e8ecf8"/><circle cx="13" cy="8" r="3.2" fill="#ffc857"/></svg>
+<div class="top">kai-artifact</div>
+<div><h1>A sky map of what I <em>publish</em></h1><p>Interactive artifacts and verified notes, each with a link you can share.</p></div>
 <div class="url">the-khiem7.github.io/kai-artifact</div>
 </body>
 </html>

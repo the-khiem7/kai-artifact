@@ -1,0 +1,54 @@
+---
+import { getCollection, render } from "astro:content";
+import Base from "../../layouts/Base.astro";
+import { url } from "../../lib/url";
+
+export async function getStaticPaths() {
+  const docs = (await getCollection("documents")).sort(
+    (a, b) => b.data.date.getTime() - a.data.date.getTime() || a.id.localeCompare(b.id),
+  );
+  return docs.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: { entry, newer: docs[i - 1], older: docs[i + 1] },
+  }));
+}
+
+const { entry, newer, older } = Astro.props;
+const { Content, headings } = await render(entry);
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const d = entry.data;
+const statusLabel: Record<string, string> = { verified: "verified", "partially-verified": "partly verified", unverified: "unverified" };
+---
+
+<Base title={`${d.title} | kai-artifact`} description={d.description} lang={d.lang}>
+  <div class="progress" aria-hidden="true"></div>
+  <main class="wrap">
+    <article class="doc">
+      <header class="doc-head">
+        <p class="eyebrow">document</p>
+        <h1>{d.title}</h1>
+        <p>{d.description}</p>
+        <div class="chips">
+          <span class="chip">{d.lang.toUpperCase()}</span>
+          <span class="chip">{d.date.toISOString().slice(0, 10)}</span>
+          <span class="chip">{statusLabel[d.status]}</span>
+          {d.topics.map((t) => <a class="chip" href={`${url()}?topic=${t}#library`}>{t}</a>)}
+        </div>
+      </header>
+      <div class="prose" id="prose">
+        <Content />
+        <nav class="pager" aria-label="More documents">
+          {newer && <a class="prev" href={url(`docs/${newer.id}/`)}><span>newer</span>{newer.data.title}</a>}
+          {older && <a class="next" href={url(`docs/${older.id}/`)}><span>older</span>{older.data.title}</a>}
+        </nav>
+      </div>
+      <aside class="toc" aria-label="On this page">
+        <b>on this page</b>
+        {toc.map((h) => <a class={`l${h.depth}`} href={`#${h.slug}`}>{h.text}</a>)}
+      </aside>
+    </article>
+  </main>
+  <script>
+    import "../../scripts/doc";
+  </script>
+</Base>
