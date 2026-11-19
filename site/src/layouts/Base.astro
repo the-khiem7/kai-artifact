@@ -49,27 +49,18 @@ const og = new URL(url("assets/og.png"), Astro.site).href;
     </script>
     <ClientRouter />
   </head>
-  <body data-base={url()}>
+  <body data-base={url()} class:list={{ home }}>
     <div class="sky" aria-hidden="true"></div>
-    <header class="nav">
-      <div class="wrap">
-        <a class="brand" href={url()}><Glyph size={26} />kai-artifact</a>
-        <nav class="nav-links" aria-label="Sections">
-          {home ? (
-            <>
-              <a class="opt" href="#map">map</a>
-              <a class="opt" href="#library">library</a>
-              <a class="opt" href="#timeline">timeline</a>
-            </>
-          ) : (
+    {!home && (
+      <header class="nav">
+        <div class="wrap">
+          <a class="brand" href={url()}><Glyph size={26} />kai-artifact</a>
+          <nav class="nav-links" aria-label="Sections">
             <a href={url("#library")}>library</a>
-          )}
-        </nav>
-        <button class="icon-btn" id="theme" type="button" aria-label="Toggle dark theme" aria-pressed="false">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
-        </button>
-      </div>
-    </header>
+          </nav>
+        </div>
+      </header>
+    )}
     <slot />
     <footer class="site">
       <div class="wrap">
