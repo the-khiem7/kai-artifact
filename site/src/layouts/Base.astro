@@ -32,21 +32,7 @@ const og = new URL(url("assets/og.png"), Astro.site).href;
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#070b17" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f5f2ea" media="(prefers-color-scheme: light)" />
-    <script is:inline>
-      // Runs before paint so the saved theme never flashes; re-applied after every client-side navigation.
-      (function () {
-        function apply() {
-          try {
-            var t = localStorage.getItem("kai-theme");
-            if (t) document.documentElement.dataset.theme = t;
-          } catch (e) {}
-        }
-        apply();
-        document.addEventListener("astro:after-swap", apply);
-      })();
-    </script>
+    <meta name="theme-color" content="#04060f" />
     <ClientRouter />
   </head>
   <body data-base={url()} class:list={{ home }}>
@@ -67,24 +53,5 @@ const og = new URL(url("assets/og.png"), Astro.site).href;
         <span>Source on <a href="https://github.com/the-khiem7/kai-artifact">GitHub</a>. All pages are public.</span>
       </div>
     </footer>
-    <script>
-      function isDark() {
-        const t = document.documentElement.dataset.theme;
-        return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-      }
-      function bindTheme() {
-        const btn = document.getElementById("theme");
-        if (!btn) return;
-        btn.setAttribute("aria-pressed", String(isDark()));
-        btn.onclick = () => {
-          const next = isDark() ? "light" : "dark";
-          document.documentElement.dataset.theme = next;
-          try { localStorage.setItem("kai-theme", next); } catch {}
-          btn.setAttribute("aria-pressed", String(isDark()));
-          document.dispatchEvent(new CustomEvent("kai:theme"));
-        };
-      }
-      document.addEventListener("astro:page-load", bindTheme);
-    </script>
   </body>
 </html>

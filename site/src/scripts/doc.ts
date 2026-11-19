@@ -1,8 +1,4 @@
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
-const isDark = () => {
-  const t = document.documentElement.dataset.theme;
-  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-};
 
 /* One scroll listener for the page lifetime; it looks the bar up each time because navigation swaps the DOM. */
 function onScroll() {
@@ -45,7 +41,7 @@ async function mermaids(prose: HTMLElement) {
   let run = 0;
   async function draw() {
     const mine = ++run;
-    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: isDark() ? "dark" : "neutral", fontFamily: "system-ui, sans-serif" });
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "dark", fontFamily: "system-ui, sans-serif" });
     for (const [i, wrap] of wraps.entries()) {
       const id = `mmd-${mine}-${i}`;
       try {
@@ -62,7 +58,6 @@ async function mermaids(prose: HTMLElement) {
     }
   }
   await draw();
-  document.addEventListener("kai:theme", draw);
 }
 
 function init() {

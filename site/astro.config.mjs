@@ -12,6 +12,6 @@ export default defineConfig({
   trailingSlash: "always",
   build: { format: "directory" },
   markdown: {
-    shikiConfig: { themes: { light: "github-light", dark: "github-dark" }, wrap: true },
+    shikiConfig: { theme: "github-dark", wrap: true },
   },
 });

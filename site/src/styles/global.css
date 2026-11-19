@@ -2,16 +2,16 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
-/* ---------- tokens: a night sky by default, a star chart on paper in light ---------- */
+/* ---------- tokens: one night sky; the constellation identity has no day palette ---------- */
 :root {
-  --bg: #070b17;
-  --bg-2: #0b1124;
-  --surface: #0e1629;
-  --surface-2: #131d36;
-  --line: rgba(150, 170, 235, 0.16);
-  --line-strong: rgba(150, 170, 235, 0.32);
+  --bg: #04060f;
+  --bg-2: #080c1c;
+  --surface: #0c1326;
+  --surface-2: #121b34;
+  --line: rgba(150, 170, 235, 0.14);
+  --line-strong: rgba(150, 170, 235, 0.3);
   --fg: #e8ecf8;
-  --muted: #9aa5c6;
+  --muted: #8f9abd;
   --accent: #8ab4ff;
   --star-artifact: #ffc857;
   --star-document: #5eead4;
@@ -22,42 +22,10 @@
   --radius: 14px;
   color-scheme: dark;
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #f5f2ea;
-    --bg-2: #efebe0;
-    --surface: #fffdf8;
-    --surface-2: #f8f4ea;
-    --line: rgba(30, 40, 80, 0.14);
-    --line-strong: rgba(30, 40, 80, 0.3);
-    --fg: #141a2e;
-    --muted: #596180;
-    --accent: #3451d1;
-    --star-artifact: #b45309;
-    --star-document: #0f766e;
-    --glow: 0 0 0 transparent;
-    color-scheme: light;
-  }
-}
-:root[data-theme="light"] {
-  --bg: #f5f2ea;
-  --bg-2: #efebe0;
-  --surface: #fffdf8;
-  --surface-2: #f8f4ea;
-  --line: rgba(30, 40, 80, 0.14);
-  --line-strong: rgba(30, 40, 80, 0.3);
-  --fg: #141a2e;
-  --muted: #596180;
-  --accent: #3451d1;
-  --star-artifact: #b45309;
-  --star-document: #0f766e;
-  --glow: 0 0 0 transparent;
-  color-scheme: light;
-}
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 76px; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sky::before { animation: none; } }
 body {
   margin: 0;
   background: var(--bg);
@@ -99,11 +67,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(60% 50% at 80% -5%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
-    radial-gradient(50% 40% at 0% 30%, color-mix(in srgb, var(--star-document) 12%, transparent), transparent 70%);
+    radial-gradient(55% 45% at 78% 8%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+    radial-gradient(45% 40% at 8% 60%, color-mix(in srgb, var(--star-document) 9%, transparent), transparent 70%),
+    radial-gradient(40% 35% at 55% 95%, color-mix(in srgb, #a78bfa 10%, transparent), transparent 70%);
 }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .sky::before { opacity: 0.12; } }
-:root[data-theme="light"] .sky::before { opacity: 0.12; }
 @keyframes twinkle { from { opacity: 0.18; } to { opacity: 0.4; } }
 
 /* ---------- nav ---------- */
@@ -118,9 +85,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .nav-links { display: flex; gap: 4px; margin-left: auto; }
 .nav-links a { color: var(--muted); text-decoration: none; font: 500 0.82rem var(--font-mono); padding: 8px 12px; border-radius: 8px; }
 .nav-links a:hover { color: var(--fg); background: var(--surface); }
-.icon-btn { width: 40px; height: 40px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
-.icon-btn:hover { border-color: var(--line-strong); }
-@media (max-width: 640px) { .nav-links a.opt { display: none; } }
 
 /* ---------- glyph ---------- */
 .glyph { color: var(--fg); overflow: visible; }
@@ -267,9 +231,6 @@ footer.site .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items:
 .prose th, .prose td { text-align: left; padding: 9px 14px; border: 1px solid var(--line); vertical-align: top; }
 .prose th { background: var(--surface-2); font-weight: 600; }
 .prose hr { border: 0; border-top: 1px solid var(--line); margin: 2.4em 0; }
-.astro-code, .astro-code span { color: var(--shiki-light); background-color: var(--shiki-light-bg); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .astro-code, :root:not([data-theme="light"]) .astro-code span { color: var(--shiki-dark); background-color: var(--shiki-dark-bg); } }
-:root[data-theme="dark"] .astro-code, :root[data-theme="dark"] .astro-code span { color: var(--shiki-dark); background-color: var(--shiki-dark-bg); }
 .mermaid-wrap { margin: 1.6em 0; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; text-align: center; }
 .mermaid-wrap svg { max-width: 100%; height: auto; }
 .mermaid-wrap.err { text-align: left; color: var(--muted); font-size: 0.85rem; }
